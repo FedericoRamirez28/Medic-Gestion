@@ -1,0 +1,63 @@
+{
+  "expo": {
+    "name": "Medic Gestión",
+    "slug": "medic-gestion",
+    "version": "1.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "scheme": "medicapp",
+    "icon": "./assets/icons/icon-1024.png",
+    "splash": {
+      "image": "./assets/splash/medic-gestion-splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#011E36"
+    },
+    "android": {
+      "package": "ar.medic.app",
+      "versionCode": 2,
+      "permissions": [],
+      "blockedPermissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.READ_MEDIA_VIDEO",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION"
+      ],
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/icons/icon-512.png",
+        "backgroundColor": "#011E36"
+      },
+      "edgeToEdgeEnabled": true
+    },
+    "ios": {
+      "bundleIdentifier": "ar.medic.app",
+      "supportsTablet": true
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "static",
+      "favicon": "./assets/images/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-splash-screen",
+      "expo-font"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "9aa00e49-a71a-473f-9453-75316edfba39"
+      }
+    },
+    "owner": "fede222"
+  }
+}

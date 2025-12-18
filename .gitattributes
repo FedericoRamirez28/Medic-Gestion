@@ -1,0 +1,6 @@
+*.onnx filter=lfs diff=lfs merge=lfs -text
+server/models/*.onnx filter=lfs diff=lfs merge=lfs -text
+# Normalizar fin de línea y evitar CRLF en scripts
+* text=auto
+*.sh text eol=lf
+

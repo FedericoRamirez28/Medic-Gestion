@@ -1,0 +1,28 @@
+# render.yaml — despliega solo server/ desde tu monorepo
+services:
+  - type: web
+    name: calories-api
+    env: node
+    plan: starter          # 24/7 encendido; podés cambiar a 'free' si no te molesta el sleep
+    region: oregon         # o 'frankfurt' si te conviene Europa
+    rootDir: server
+    buildCommand: npm ci && npm run build
+    startCommand: bash scripts/bootstrap-models.sh && node dist/index.js
+    autoDeploy: true
+    headers:
+      - path: /*
+        name: Access-Control-Allow-Origin
+        value: "*"
+    healthCheckPath: /health
+    disks:
+      - name: models
+        mountPath: /data
+        sizeGB: 2           # ajustá según tu(s) modelo(s)
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: MODEL_DIR
+        value: /data/models
+      # Si vas a descargar el modelo al arrancar:
+      - key: MODEL_URL
+        value: https://TU-STORAGE/model.onnx
