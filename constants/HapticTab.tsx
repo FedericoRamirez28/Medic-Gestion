@@ -7,10 +7,13 @@ export function HapticTab(props: BottomTabBarButtonProps) {
     <PlatformPressable
       {...props}
       onPressIn={(ev) => {
+        // iOS: impacto suave. Android: selección sutil.
         if (process.env.EXPO_OS === 'ios') {
-          // Add a soft haptic feedback when pressing down on the tabs.
           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        } else {
+          Haptics.selectionAsync();
         }
+
         props.onPressIn?.(ev);
       }}
     />

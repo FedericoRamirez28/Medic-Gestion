@@ -1,10 +1,17 @@
 // components/features/home/PrincipalScreen.tsx
 import React, { useMemo } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import {
+  createBottomTabNavigator,
+  type BottomTabScreenProps,
+  type BottomTabBarButtonProps,
+} from '@react-navigation/bottom-tabs';
+import { PlatformPressable } from '@react-navigation/elements';
+import * as Haptics from 'expo-haptics';
 
 import { useAuth } from '@/app/(tabs)/context';
+import { useAppTheme } from '@/components/theme/AppThemeProvider';
 
 // Screens reales
 import CredencialScreen from '@/components/features/home/CredencialScreen';
@@ -14,6 +21,28 @@ import FarmaciaScreen from './FarmaciaScreen';
 // Menú lateral
 import { MenuProvider, useMenu } from '@/components/menu/MenuProvider';
 import { RightMenu } from '@/components/menu/RightMenu';
+
+type RootTabParamList = {
+  Inicio: undefined;
+  Farmacias: undefined;
+  Prestadores: undefined;
+  Credencial: undefined;
+};
+
+/** ✅ Haptic tab pro (no rompe nada) */
+function HapticTab(props: BottomTabBarButtonProps) {
+  return (
+    <PlatformPressable
+      {...props}
+      onPressIn={(ev) => {
+        if (Platform.OS === 'ios') {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+        }
+        props.onPressIn?.(ev);
+      }}
+    />
+  );
+}
 
 function HeaderBurger() {
   const { open } = useMenu();
@@ -36,48 +65,127 @@ function HeaderBurger() {
   );
 }
 
-const Tab = createBottomTabNavigator();
+const Tab = createBottomTabNavigator<RootTabParamList>();
 
-const InicioScreen: React.FC = () => {
+const TITLES: Record<keyof RootTabParamList, string> = {
+  Inicio: 'Medic Gestión',
+  Farmacias: 'Farmacias',
+  Prestadores: 'Prestadores',
+  Credencial: 'Mi credencial',
+};
+
+const ICONS: Record<keyof RootTabParamList, React.ComponentProps<typeof Ionicons>['name']> = {
+  Inicio: 'home',
+  Farmacias: 'medkit',
+  Prestadores: 'people',
+  Credencial: 'card',
+};
+
+type InicioProps = BottomTabScreenProps<RootTabParamList, 'Inicio'>;
+
+const InicioScreen: React.FC<InicioProps> = ({ navigation }) => {
   const { user } = useAuth();
+  const { theme } = useAppTheme();
   const userName = useMemo(() => user?.nombre ?? 'invitado', [user]);
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={{ padding: 16 }}>
-      <Text style={styles.Title}>Bienvenido, {userName}</Text>
-      <View style={styles.lineaInferior2} />
+    <ScrollView
+      style={[styles.container, { backgroundColor: theme.colors.surface }]}
+      contentContainerStyle={{ padding: 16 }}
+    >
+      <Text style={[styles.Title, { color: theme.colors.text }]}>Bienvenido, {userName}</Text>
+      <View style={[styles.lineaInferior2, { backgroundColor: theme.isDark ? '#23324A' : '#BFD6EF' }]} />
 
-      <Text style={[styles.Title, { marginTop: 18, fontSize: 22 }]}>Novedades</Text>
-      <View style={styles.lineaInferior2} />
+      <Text style={[styles.Title, { marginTop: 18, fontSize: 22, color: theme.colors.text }]}>
+        Accesos rápidos
+      </Text>
+      <View style={[styles.lineaInferior2, { backgroundColor: theme.isDark ? '#23324A' : '#BFD6EF' }]} />
+
+      <View style={{ marginTop: 12, gap: 10 }}>
+        <Pressable
+          onPress={() => navigation.navigate('Farmacias')}
+          style={[styles.quickCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}
+          accessibilityRole="button"
+          accessibilityLabel="Ir a Farmacias"
+        >
+          <Ionicons name="medkit-outline" size={22} color={theme.colors.text} />
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.quickTitle, { color: theme.colors.text }]}>Farmacias</Text>
+            <Text style={[styles.quickSub, { color: theme.colors.muted }]}>
+              Buscá farmacias y datos de contacto.
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={theme.colors.muted} />
+        </Pressable>
+
+        <Pressable
+          onPress={() => navigation.navigate('Prestadores')}
+          style={[styles.quickCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}
+          accessibilityRole="button"
+          accessibilityLabel="Ir a Prestadores"
+        >
+          <Ionicons name="people-outline" size={22} color={theme.colors.text} />
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.quickTitle, { color: theme.colors.text }]}>Prestadores</Text>
+            <Text style={[styles.quickSub, { color: theme.colors.muted }]}>
+              Encontrá médicos y centros disponibles.
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={theme.colors.muted} />
+        </Pressable>
+
+        <Pressable
+          onPress={() => navigation.navigate('Credencial')}
+          style={[styles.quickCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}
+          accessibilityRole="button"
+          accessibilityLabel="Ir a Mi credencial"
+        >
+          <Ionicons name="card-outline" size={22} color={theme.colors.text} />
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.quickTitle, { color: theme.colors.text }]}>Mi credencial</Text>
+            <Text style={[styles.quickSub, { color: theme.colors.muted }]}>
+              Mostrá tu credencial rápidamente.
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={theme.colors.muted} />
+        </Pressable>
+      </View>
+
+      <Text style={[styles.Title, { marginTop: 18, fontSize: 22, color: theme.colors.text }]}>
+        Novedades
+      </Text>
+      <View style={[styles.lineaInferior2, { backgroundColor: theme.isDark ? '#23324A' : '#BFD6EF' }]} />
 
       <View style={{ marginTop: 12 }}>
-        <View style={styles.novedadCard}>
-          <Ionicons name="information-circle-outline" size={20} color="#0f172a" />
-          <Text style={styles.novedadText}>
+        <View style={[styles.novedadCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
+          <Ionicons name="information-circle-outline" size={20} color={theme.colors.text} />
+          <Text style={[styles.novedadText, { color: theme.colors.text }]}>
             Mantenete al día con información importante de tu cobertura y servicios.
           </Text>
         </View>
 
-        <View style={styles.novedadCard}>
-          <Ionicons name="call-outline" size={20} color="#0f172a" />
-          <Text style={styles.novedadText}>
+        <View style={[styles.novedadCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
+          <Ionicons name="call-outline" size={20} color={theme.colors.text} />
+          <Text style={[styles.novedadText, { color: theme.colors.text }]}>
             En caso de urgencia, utilizá los canales oficiales desde la app.
           </Text>
         </View>
 
-        <View style={styles.novedadCard}>
-          <Ionicons name="documents-outline" size={20} color="#0f172a" />
-          <Text style={styles.novedadText}>
+        <View style={[styles.novedadCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
+          <Ionicons name="documents-outline" size={20} color={theme.colors.text} />
+          <Text style={[styles.novedadText, { color: theme.colors.text }]}>
             Revisá tu credencial y prestadores disponibles desde las pestañas inferiores.
           </Text>
         </View>
       </View>
 
-      <Text style={[styles.Title, { marginTop: 18, fontSize: 22 }]}>Medic te ayuda</Text>
-      <View style={styles.lineaInferior2} />
+      <Text style={[styles.Title, { marginTop: 18, fontSize: 22, color: theme.colors.text }]}>
+        Medic te ayuda
+      </Text>
+      <View style={[styles.lineaInferior2, { backgroundColor: theme.isDark ? '#23324A' : '#BFD6EF' }]} />
 
-      <View style={styles.cajaTexto}>
-        <Text style={styles.texto}>
+      <View style={[styles.cajaTexto, { backgroundColor: theme.colors.card }]}>
+        <Text style={[styles.texto, { color: theme.colors.muted }]}>
           Accedé rápido a prestadores, farmacias y tu credencial desde el menú y las pestañas.
         </Text>
       </View>
@@ -86,49 +194,72 @@ const InicioScreen: React.FC = () => {
 };
 
 export default function PrincipalScreen() {
-  const ICONS: Record<string, React.ComponentProps<typeof Ionicons>['name']> = {
-    Inicio: 'home',
-    Farmacias: 'medkit',
-    Prestadores: 'people',
-    Credencial: 'card',
-  };
+  const { theme } = useAppTheme();
 
   return (
     <MenuProvider>
-      <View style={{ flex: 1 }}>
+      <View style={{ flex: 1, backgroundColor: theme.colors.bg }}>
         <Tab.Navigator
           initialRouteName="Inicio"
+          backBehavior="history"
           screenOptions={({ route }) => ({
             headerShown: true,
-            headerStyle: styles.header,
+            headerStyle: { backgroundColor: theme.colors.headerBg },
             headerTitleAlign: 'left',
             headerTitle: () => (
-              <Text style={styles.headerTitle}>
-                {route.name === 'Inicio' ? 'Medic Gestión' : route.name}
+              <Text style={[styles.headerTitle, { color: theme.colors.headerText }]}>
+                {TITLES[route.name as keyof RootTabParamList]}
               </Text>
             ),
             headerRight: () => (
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                {route.name === 'Inicio' && <HeaderBurger />}
+                <HeaderBurger />
               </View>
             ),
-            tabBarIcon: ({ size, color }) => {
-              const iconName = ICONS[route.name] ?? 'home';
-              return <Ionicons name={iconName} size={size} color={color} />;
+
+            /** ✅ Haptic */
+            tabBarButton: (props) => <HapticTab {...props} />,
+
+            /** ✅ Icon + línea arriba en el tab activo */
+            tabBarIcon: ({ size, color, focused }) => {
+              const iconName = ICONS[route.name as keyof RootTabParamList] ?? 'home';
+              return (
+                <View style={styles.iconWrap}>
+                  <View
+                    style={[
+                      styles.activeTopLine,
+                      { backgroundColor: focused ? theme.colors.tabActive : 'transparent' },
+                    ]}
+                  />
+                  <Ionicons name={iconName} size={size} color={color} />
+                </View>
+              );
             },
-            tabBarActiveTintColor: '#1E5631',
-            tabBarInactiveTintColor: '#fff',
-            tabBarStyle: styles.tabBar,
+
+            tabBarLabel: TITLES[route.name as keyof RootTabParamList],
+
+            // performance
+            lazy: false,
+            freezeOnBlur: true,
+            tabBarHideOnKeyboard: true,
+
+            tabBarActiveTintColor: theme.colors.tabActive,
+            tabBarInactiveTintColor: theme.colors.tabInactive,
+
+            tabBarStyle: {
+              backgroundColor: theme.colors.tabBg,
+              borderTopColor: theme.colors.tabBorder,
+              // ✅ evita “pisar” zona de gestos en Android
+              height: Platform.OS === 'android' ? 62 : 78,
+              paddingBottom: Platform.OS === 'android' ? 10 : 18,
+              paddingTop: 8,
+            },
           })}
         >
           <Tab.Screen name="Inicio" component={InicioScreen} options={{ title: '' }} />
           <Tab.Screen name="Farmacias" component={FarmaciaScreen} />
           <Tab.Screen name="Prestadores" component={PrestadorScreen} />
-          <Tab.Screen
-            name="Credencial"
-            component={CredencialScreen}
-            options={{ title: 'Mi credencial' }}
-          />
+          <Tab.Screen name="Credencial" component={CredencialScreen} options={{ title: TITLES.Credencial }} />
         </Tab.Navigator>
 
         <RightMenu />
@@ -138,33 +269,52 @@ export default function PrincipalScreen() {
 }
 
 const styles = StyleSheet.create({
-  header: { backgroundColor: '#7FADDF', elevation: 4 },
-  headerTitle: { fontSize: 20, fontWeight: '600', color: '#fff', marginLeft: 2 },
+  headerTitle: { fontSize: 20, fontWeight: '600', marginLeft: 2 },
 
-  container: { flex: 1, backgroundColor: '#f5f5f5' },
-  Title: { fontSize: 28, fontWeight: '600', color: '#111111' },
-  lineaInferior2: { height: 2, width: '100%', backgroundColor: '#BFD6EF', borderRadius: 2 },
+  container: { flex: 1 },
+  Title: { fontSize: 28, fontWeight: '600' },
+  lineaInferior2: { height: 2, width: '100%', borderRadius: 2 },
 
   cajaTexto: {
-    backgroundColor: '#F5F5F5',
     padding: 8,
     borderRadius: 8,
     elevation: 10,
     marginTop: 12,
   },
-  texto: { margin: 8, fontSize: 16, textAlign: 'center', color: '#424242' },
+  texto: { margin: 8, fontSize: 16, textAlign: 'center' },
 
   novedadCard: {
     flexDirection: 'row',
     gap: 10,
-    backgroundColor: '#ffffff',
     borderRadius: 12,
     padding: 12,
     marginBottom: 10,
     borderWidth: 1,
-    borderColor: '#e5e7eb',
   },
-  novedadText: { flex: 1, color: '#111827', fontSize: 14, lineHeight: 20 },
+  novedadText: { flex: 1, fontSize: 14, lineHeight: 20 },
 
-  tabBar: { backgroundColor: '#7FADDF', borderTopColor: '#7FADDF' },
+  quickCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1,
+  },
+  quickTitle: { fontSize: 16, fontWeight: '700' },
+  quickSub: { marginTop: 2, fontSize: 13 },
+
+  /** icon wrapper + top active line */
+  iconWrap: {
+    width: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  activeTopLine: {
+    position: 'absolute',
+    top: -8,
+    height: 3,
+    width: 34,
+    borderRadius: 3,
+  },
 });

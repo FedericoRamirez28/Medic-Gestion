@@ -12,12 +12,19 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import * as Network from 'expo-network';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 type CredencialData = {
   numeroSocio: string;
   nombre: string;
   dni: string;
   plan: string;
+};
+
+type CachedPayload = {
+  data: CredencialData;
+  cachedAt: number; // ms
 };
 
 const API_BASE = (process.env.EXPO_PUBLIC_API_BASE_URL ?? '').replace(/\/+$/, '');
@@ -30,6 +37,36 @@ function safeParseJson<T = any>(text: string): T | null {
   }
 }
 
+function cacheKey(dni: string) {
+  return `medic_credencial_cache_v1_${dni}`;
+}
+
+function formatDateTime(ts: number) {
+  const d = new Date(ts);
+  const dd = String(d.getDate()).padStart(2, '0');
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const yyyy = d.getFullYear();
+  const hh = String(d.getHours()).padStart(2, '0');
+  const min = String(d.getMinutes()).padStart(2, '0');
+  return `${dd}/${mm}/${yyyy} ${hh}:${min}`;
+}
+
+async function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const t = setTimeout(() => reject(new Error('timeout')), ms);
+    p.then(
+      (v) => {
+        clearTimeout(t);
+        resolve(v);
+      },
+      (e) => {
+        clearTimeout(t);
+        reject(e);
+      }
+    );
+  });
+}
+
 export default function CredencialScreen() {
   const router = useRouter();
   const { user } = useAuth();
@@ -37,25 +74,82 @@ export default function CredencialScreen() {
   const afiliadoDni = useMemo(() => String(user?.dni ?? '').trim(), [user?.dni]);
 
   const [credencial, setCredencial] = useState<CredencialData | null>(null);
+
+  // loading SOLO si no hay cache y estamos intentando traer data
   const [loading, setLoading] = useState(true);
+
+  // modo offline: no hay red y estamos mostrando cache (o no hay cache)
+  const [offline, setOffline] = useState(false);
+  const [cachedAt, setCachedAt] = useState<number | null>(null);
+  const [hasCache, setHasCache] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
 
     (async () => {
-      try {
-        setLoading(true);
+      setLoading(true);
+      setOffline(false);
+      setCachedAt(null);
+      setHasCache(false);
 
-        if (!afiliadoDni || !API_BASE) {
-          if (!cancelled) setCredencial(null);
+      // 1) Intentar cargar cache primero (modo rápido)
+      let cacheFound = false;
+
+      if (afiliadoDni) {
+        try {
+          const raw = await AsyncStorage.getItem(cacheKey(afiliadoDni));
+          const parsed = raw ? safeParseJson<CachedPayload>(raw) : null;
+
+          if (!cancelled && parsed?.data) {
+            cacheFound = true;
+            setCredencial(parsed.data);
+            setHasCache(true);
+            setCachedAt(parsed.cachedAt ?? null);
+
+            // ✅ si hay cache, NO mostramos loader “duro”
+            setLoading(false);
+          }
+        } catch {
+          // ignore
+        }
+      }
+
+      // Si no tenemos DNI o API_BASE, no podemos buscar online.
+      if (!afiliadoDni || !API_BASE) {
+        if (!cancelled) {
+          // si no había cache, terminamos loading acá
+          if (!cacheFound) setLoading(false);
+        }
+        return;
+      }
+
+      // 2) Si no hay conexión, usar cache y marcar offline
+      try {
+        const net = await Network.getNetworkStateAsync();
+        const connected = !!net?.isConnected;
+
+        if (!connected) {
+          if (!cancelled) {
+            setOffline(true);
+            // si no hay cache, dejamos el estado como esté (null) y cortamos loading
+            if (!cacheFound) setLoading(false);
+          }
           return;
         }
+      } catch {
+        // si falla el check, igual intentamos fetch
+      }
 
-        const res = await fetch(`${API_BASE}/api/servicios/getinfobydni`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ numeroDni: afiliadoDni }),
-        });
+      // 3) Fetch online (con timeout). Si tarda o falla, nos quedamos con cache.
+      try {
+        const res = await withTimeout(
+          fetch(`${API_BASE}/api/servicios/getinfobydni`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ numeroDni: afiliadoDni }),
+          }),
+          12000
+        );
 
         const text = await res.text();
         const data: any = safeParseJson(text);
@@ -63,20 +157,45 @@ export default function CredencialScreen() {
         if (cancelled) return;
 
         if (!res.ok || !data || data?.habilitado === false) {
-          setCredencial(null);
+          // si ya había cache, lo dejamos; si no, null
+          if (!cacheFound) setCredencial(null);
+          setLoading(false);
           return;
         }
 
-        setCredencial({
+        const next: CredencialData = {
           numeroSocio: String(data.numero_contrato ?? ''),
           nombre: String(data.nombre ?? ''),
           dni: String(data.dni ?? afiliadoDni),
           plan: String(data.plan ?? ''),
-        });
+        };
+
+        setCredencial(next);
+        setOffline(false);
+        setHasCache(true);
+
+        const now = Date.now();
+        setCachedAt(now);
+
+        // guardar cache
+        try {
+          const payload: CachedPayload = { data: next, cachedAt: now };
+          await AsyncStorage.setItem(cacheKey(afiliadoDni), JSON.stringify(payload));
+        } catch {
+          // ignore
+        }
+
+        setLoading(false);
       } catch {
-        if (!cancelled) setCredencial(null);
-      } finally {
-        if (!cancelled) setLoading(false);
+        // fallo/timeout: si hay cache, offline; si no, mostramos vacío
+        if (!cancelled) {
+          setOffline(true);
+          if (!cacheFound) {
+            setCredencial(null);
+            setLoading(false);
+          }
+          // si había cache, ya estamos mostrando algo (loading ya estaba false)
+        }
       }
     })();
 
@@ -85,6 +204,8 @@ export default function CredencialScreen() {
     };
   }, [afiliadoDni]);
 
+  const missingDni = !afiliadoDni;
+
   if (loading) {
     return (
       <SafeAreaView style={styles.centered}>
@@ -92,8 +213,6 @@ export default function CredencialScreen() {
       </SafeAreaView>
     );
   }
-
-  const missingDni = !afiliadoDni;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -111,6 +230,23 @@ export default function CredencialScreen() {
         <View style={styles.planBar}>
           <Text style={styles.planBarValue}>{credencial?.plan || '—'}</Text>
         </View>
+
+        {/* ✅ Estado offline/cache (sin romper UI) */}
+        {(offline || cachedAt) && (
+          <View style={styles.offlineBox}>
+            {offline ? (
+              <Text style={styles.offlineText}>
+                Sin conexión. Mostrando credencial guardada.
+              </Text>
+            ) : null}
+
+            {cachedAt ? (
+              <Text style={styles.offlineMuted}>
+                Última actualización: {formatDateTime(cachedAt)}
+              </Text>
+            ) : null}
+          </View>
+        )}
 
         {!API_BASE && (
           <Text style={styles.warnText}>
@@ -132,11 +268,17 @@ export default function CredencialScreen() {
               dni={credencial.dni}
             />
             <Text style={styles.legend}>
-              El uso de esta credencial es exclusivo de su titular y debe presentarse con el documento de identidad.
+              El uso de esta credencial es exclusivo de su titular y debe presentarse con el documento
+              de identidad.
             </Text>
           </>
-        ) : (
+        ) : hasCache ? (
+          // Caso raro: cache flag true pero credencial null, lo dejamos como mensaje normal
           <Text style={styles.errorText}>No se encontraron datos de la credencial.</Text>
+        ) : (
+          <Text style={styles.errorText}>
+            No se encontraron datos de la credencial. Conectate a internet para cargarla por primera vez.
+          </Text>
         )}
       </View>
     </SafeAreaView>
@@ -179,6 +321,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   planBarValue: { fontSize: 16, fontWeight: '800', color: COLORS.planText },
+
+  offlineBox: { marginTop: 10, alignSelf: 'stretch', paddingHorizontal: 16, gap: 4 },
+  offlineText: { fontSize: 12, fontWeight: '800', color: '#9A3412', textAlign: 'center' },
+  offlineMuted: { fontSize: 12, color: COLORS.muted, textAlign: 'center' },
 
   warnText: { marginTop: 10, fontSize: 12, color: COLORS.muted, textAlign: 'center' },
 

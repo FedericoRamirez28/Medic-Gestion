@@ -20,6 +20,8 @@ import {
   View,
 } from 'react-native';
 import { useMenu } from './MenuProvider';
+import { useAppTheme } from '@/components/theme/AppThemeProvider';
+import type { ThemeMode } from '@/components/theme/appTheme';
 
 const W = Dimensions.get('window').width;
 const MENU_W = Math.min(320, Math.round(W * 0.86));
@@ -67,6 +69,8 @@ async function safeOpenURL(url: string) {
 }
 
 export function RightMenu() {
+  const { theme, mode, setMode } = useAppTheme();
+
   const { isOpen, close } = useMenu();
   const { user, setUser } = useAuth();
   const router = useRouter();
@@ -153,7 +157,9 @@ export function RightMenu() {
   async function answerWithDni(feature: 'mi_plan' | 'mi_estado' | 'mi_credencial') {
     const dni = (user as any)?.dni || (user as any)?.documento || (user as any)?.doc;
     if (!dni) {
-      pushBot('Necesito tu DNI para consultar tu información. Escribí: "mi dni es 30.123.456" (o sin puntos).');
+      pushBot(
+        'Necesito tu DNI para consultar tu información. Escribí: "mi dni es 30.123.456" (o sin puntos).'
+      );
       return;
     }
 
@@ -251,12 +257,17 @@ export function RightMenu() {
 
   const triggerIntent = (intent: Intent) => {
     const ph =
-      intent === 'ambulancia' ? 'Quiero ambulancia' :
-      intent === 'reclamos' ? 'Tengo un reclamo' :
-      intent === 'comercial' ? 'Consulta comercial' :
-      intent === 'mi_plan' ? 'Mi plan' :
-      intent === 'mi_estado' ? 'Mi estado' :
-      'Mi credencial';
+      intent === 'ambulancia'
+        ? 'Quiero ambulancia'
+        : intent === 'reclamos'
+          ? 'Tengo un reclamo'
+          : intent === 'comercial'
+            ? 'Consulta comercial'
+            : intent === 'mi_plan'
+              ? 'Mi plan'
+              : intent === 'mi_estado'
+                ? 'Mi estado'
+                : 'Mi credencial';
     send(ph);
   };
 
@@ -276,7 +287,9 @@ export function RightMenu() {
 
   const doRealLogout = () => {
     close();
-    try { setUser(null as any); } catch {}
+    try {
+      setUser(null as any);
+    } catch {}
     router.replace('/Login');
   };
 
@@ -287,18 +300,49 @@ export function RightMenu() {
     });
   };
 
+  const ThemeChip = ({ label, value }: { label: string; value: ThemeMode }) => {
+    const active = mode === value;
+    return (
+      <TouchableOpacity
+        onPress={() => setMode(value)}
+        style={[
+          styles.chip,
+          {
+            backgroundColor: active ? theme.colors.buttonBg : theme.colors.chipBg,
+            borderColor: theme.colors.border,
+          },
+        ]}
+      >
+        <Text style={{ color: active ? theme.colors.buttonText : theme.colors.chipText, fontSize: 12, fontWeight: '700' }}>
+          {label}
+        </Text>
+      </TouchableOpacity>
+    );
+  };
+
   return (
     <>
       <TouchableOpacity
         activeOpacity={1}
         onPress={close}
-        style={[styles.overlay, { display: isOpen ? 'flex' : 'none' }]}
+        style={[styles.overlay, { display: isOpen ? 'flex' : 'none', backgroundColor: theme.colors.overlay }]}
       />
-      <Animated.View style={[styles.drawer, { transform: [{ translateX: x }] }]}>
-        <Text style={styles.menuTitle}>Menú</Text>
 
-        <View style={styles.botCard}>
-          <Text style={styles.sectionTitle}>Asistente</Text>
+      <Animated.View style={[styles.drawer, { transform: [{ translateX: x }], backgroundColor: theme.colors.drawerBg }]}>
+        <Text style={[styles.menuTitle, { color: theme.colors.text }]}>Menú</Text>
+
+        {/* ✅ Selector de tema */}
+        <View style={[styles.botCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border, borderWidth: 1 }]}>
+          <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Apariencia</Text>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+            <ThemeChip label="Sistema" value="system" />
+            <ThemeChip label="Claro" value="light" />
+            <ThemeChip label="Oscuro" value="dark" />
+          </View>
+        </View>
+
+        <View style={[styles.botCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border, borderWidth: 1 }]}>
+          <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Asistente</Text>
 
           <FlatList
             ref={listRef}
@@ -308,30 +352,37 @@ export function RightMenu() {
             contentContainerStyle={{ paddingBottom: 6 }}
             onContentSizeChange={scrollToBottom}
             renderItem={({ item }) => (
-              <View style={[styles.bubble, item.from === 'user' ? styles.user : styles.bot]}>
-                <Text style={styles.bubbleText}>{item.text}</Text>
+              <View
+                style={[
+                  styles.bubble,
+                  item.from === 'user'
+                    ? { backgroundColor: theme.colors.bubbleUserBg, alignSelf: 'flex-end' }
+                    : { backgroundColor: theme.colors.bubbleBotBg, alignSelf: 'flex-start' },
+                ]}
+              >
+                <Text style={[styles.bubbleText, { color: theme.colors.text }]}>{item.text}</Text>
               </View>
             )}
           />
 
           <View style={styles.quickRow}>
-            <TouchableOpacity style={styles.chip} onPress={() => triggerIntent('ambulancia')}>
-              <Text style={styles.chipText}>Emergencias 24hs</Text>
+            <TouchableOpacity style={[styles.chip, { backgroundColor: theme.colors.chipBg, borderColor: theme.colors.border }]} onPress={() => triggerIntent('ambulancia')}>
+              <Text style={[styles.chipText, { color: theme.colors.chipText }]}>Emergencias 24hs</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.chip} onPress={() => triggerIntent('reclamos')}>
-              <Text style={styles.chipText}>Reclamos</Text>
+            <TouchableOpacity style={[styles.chip, { backgroundColor: theme.colors.chipBg, borderColor: theme.colors.border }]} onPress={() => triggerIntent('reclamos')}>
+              <Text style={[styles.chipText, { color: theme.colors.chipText }]}>Reclamos</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.chip} onPress={() => triggerIntent('comercial')}>
-              <Text style={styles.chipText}>Comercial</Text>
+            <TouchableOpacity style={[styles.chip, { backgroundColor: theme.colors.chipBg, borderColor: theme.colors.border }]} onPress={() => triggerIntent('comercial')}>
+              <Text style={[styles.chipText, { color: theme.colors.chipText }]}>Comercial</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.chip} onPress={() => triggerIntent('mi_plan')}>
-              <Text style={styles.chipText}>Mi plan</Text>
+            <TouchableOpacity style={[styles.chip, { backgroundColor: theme.colors.chipBg, borderColor: theme.colors.border }]} onPress={() => triggerIntent('mi_plan')}>
+              <Text style={[styles.chipText, { color: theme.colors.chipText }]}>Mi plan</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.chip} onPress={() => triggerIntent('mi_estado')}>
-              <Text style={styles.chipText}>Mi estado</Text>
+            <TouchableOpacity style={[styles.chip, { backgroundColor: theme.colors.chipBg, borderColor: theme.colors.border }]} onPress={() => triggerIntent('mi_estado')}>
+              <Text style={[styles.chipText, { color: theme.colors.chipText }]}>Mi estado</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.chip} onPress={() => triggerIntent('mi_credencial')}>
-              <Text style={styles.chipText}>Mi credencial</Text>
+            <TouchableOpacity style={[styles.chip, { backgroundColor: theme.colors.chipBg, borderColor: theme.colors.border }]} onPress={() => triggerIntent('mi_credencial')}>
+              <Text style={[styles.chipText, { color: theme.colors.chipText }]}>Mi credencial</Text>
             </TouchableOpacity>
           </View>
 
@@ -341,85 +392,94 @@ export function RightMenu() {
               onChangeText={setInput}
               onSubmitEditing={() => send(input)}
               placeholder="Escribí: mi plan, mi estado, credencial… o 'mi dni es 30.123.456'"
-              placeholderTextColor="#99A2AD"
-              style={styles.input}
+              placeholderTextColor={theme.isDark ? '#93A4B8' : '#99A2AD'}
+              style={[styles.input, { backgroundColor: theme.colors.inputBg, color: theme.colors.text, borderColor: theme.colors.border, borderWidth: 1 }]}
               returnKeyType="send"
             />
-            <TouchableOpacity style={styles.sendBtn} onPress={() => send(input)}>
-              <Text style={{ color: 'white', fontWeight: '700' }}>Enviar</Text>
+            <TouchableOpacity style={[styles.sendBtn, { backgroundColor: theme.colors.buttonBg }]} onPress={() => send(input)}>
+              <Text style={{ color: theme.colors.buttonText, fontWeight: '800' }}>Enviar</Text>
             </TouchableOpacity>
           </View>
 
           {lastAction && (lastAction.call || lastAction.whatsapp) && (
             <View style={{ marginTop: 10 }}>
-              <TouchableOpacity style={styles.callBtn} onPress={doPrimaryAction}>
-                <Text style={styles.callText}>
+              <TouchableOpacity style={[styles.callBtn, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]} onPress={doPrimaryAction}>
+                <Text style={[styles.callText, { color: theme.colors.text }]}>
                   {lastAction.call ? `Llamar ${lastAction.call}` : 'Abrir WhatsApp'}
                 </Text>
               </TouchableOpacity>
             </View>
           )}
 
-          <Text style={{ marginTop: 6, color: '#6b7280', fontSize: 12 }}>
+          <Text style={{ marginTop: 6, color: theme.colors.muted, fontSize: 12 }}>
             Horario atención: {config.horario.start}:00–{config.horario.end}:00
           </Text>
         </View>
 
-        <TouchableOpacity style={styles.logoutBtn} onPress={logout}>
-          <Text style={styles.logoutText}>Cerrar sesión</Text>
+        <TouchableOpacity style={[styles.logoutBtn, { borderColor: theme.colors.border }]} onPress={logout}>
+          <Text style={[styles.logoutText, { color: theme.colors.text }]}>Cerrar sesión</Text>
         </TouchableOpacity>
 
-        <Text style={styles.version}>versión : 1.1.0</Text>
+        <Text style={[styles.version, { color: theme.isDark ? '#8BC6F0' : '#2d5c72' }]}>versión : 1.1.0</Text>
       </Animated.View>
     </>
   );
 }
 
 const styles = StyleSheet.create({
-  overlay: { position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, backgroundColor: '#0008' },
+  overlay: { position: 'absolute', top: 0, bottom: 0, left: 0, right: 0 },
+
   drawer: {
     position: 'absolute',
     top: 0,
     bottom: 0,
     right: 0,
     width: MENU_W,
-    backgroundColor: '#fff',
     paddingTop: Platform.select({ ios: 54, android: 24 }),
     paddingHorizontal: 16,
     gap: 12,
   },
-  menuTitle: { fontSize: 20, fontWeight: '700', marginBottom: 4, color: '#1f2937' },
-  botCard: { backgroundColor: '#F3F6FA', borderRadius: 12, padding: 12 },
-  sectionTitle: { fontWeight: '700', marginBottom: 8, color: '#1f2937' },
+
+  menuTitle: { fontSize: 20, fontWeight: '700', marginBottom: 4 },
+
+  botCard: { borderRadius: 12, padding: 12 },
+
+  sectionTitle: { fontWeight: '700', marginBottom: 8 },
+
   bubble: { borderRadius: 10, padding: 8, marginVertical: 4, maxWidth: '92%' },
-  bot: { alignSelf: 'flex-start', backgroundColor: 'white' },
-  user: { alignSelf: 'flex-end', backgroundColor: '#DDEBFA' },
-  bubbleText: { color: '#1f2937' },
+  bubbleText: {},
+
   quickRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 6 },
-  chip: { backgroundColor: 'white', borderRadius: 16, paddingVertical: 6, paddingHorizontal: 10, elevation: 1 },
-  chipText: { color: '#0f172a', fontSize: 12 },
+  chip: {
+    borderRadius: 16,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderWidth: 1,
+  },
+  chipText: { fontSize: 12 },
+
   inputRow: { flexDirection: 'row', gap: 8, marginTop: 8 },
-  input: { flex: 1, backgroundColor: 'white', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10 },
-  sendBtn: { backgroundColor: '#6FA7D9', paddingHorizontal: 12, borderRadius: 10, justifyContent: 'center' },
+  input: { flex: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10 },
+  sendBtn: { paddingHorizontal: 12, borderRadius: 10, justifyContent: 'center' },
+
   callBtn: {
-    backgroundColor: '#fff',
     borderRadius: 10,
     paddingVertical: 10,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#E5E7EB',
   },
-  callText: { color: '#0f172a', fontWeight: '600' },
+  callText: { fontWeight: '600' },
+
   logoutBtn: {
     marginTop: 10,
     borderRadius: 12,
     paddingVertical: 12,
     alignItems: 'center',
     borderWidth: 2,
-    borderColor: '#E5E7EB',
   },
-  logoutText: { fontWeight: '700', color: '#0f172a' },
-  version: { textAlign: 'center', color: '#2d5c72', marginTop: 6 },
+  logoutText: { fontWeight: '700' },
+
+  version: { textAlign: 'center', marginTop: 6 },
 });
 
 export default RightMenu;
