@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import * as Network from 'expo-network';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useAppTheme } from '@/components/theme/AppThemeProvider';
 
 type CredencialData = {
   numeroSocio: string;
@@ -24,7 +25,7 @@ type CredencialData = {
 
 type CachedPayload = {
   data: CredencialData;
-  cachedAt: number; // ms
+  cachedAt: number;
 };
 
 const API_BASE = (process.env.EXPO_PUBLIC_API_BASE_URL ?? '').replace(/\/+$/, '');
@@ -70,18 +71,37 @@ async function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
 export default function CredencialScreen() {
   const router = useRouter();
   const { user } = useAuth();
+  const { theme } = useAppTheme();
 
-  const afiliadoDni = useMemo(() => String(user?.dni ?? '').trim(), [user?.dni]);
+  const afiliadoDni = useMemo(() => String((user as any)?.dni ?? '').trim(), [(user as any)?.dni]);
 
   const [credencial, setCredencial] = useState<CredencialData | null>(null);
-
-  // loading SOLO si no hay cache y estamos intentando traer data
   const [loading, setLoading] = useState(true);
 
-  // modo offline: no hay red y estamos mostrando cache (o no hay cache)
   const [offline, setOffline] = useState(false);
   const [cachedAt, setCachedAt] = useState<number | null>(null);
   const [hasCache, setHasCache] = useState(false);
+
+  // ✅ Colores desde tu theme (sin usar `primary`)
+  const isDark = !!theme?.isDark;
+  const colors = theme?.colors;
+
+  const C = {
+    bg: colors?.surface ?? (isDark ? '#0B1220' : '#FFFFFF'),
+    text: colors?.text ?? (isDark ? '#E5E7EB' : '#111111'),
+    muted: colors?.muted ?? (isDark ? '#9CA3AF' : '#444444'),
+    border: colors?.border ?? (isDark ? '#22324A' : '#DADADA'),
+
+    // ✅ en tu tema, el “accent” útil para links suele ser tabActive
+    link: colors?.tabActive ?? '#005BBF',
+
+    medicGreen: '#2FAE3B',
+    planBg: isDark ? 'rgba(47,174,59,0.16)' : '#E8F5E9',
+    planText: isDark ? '#9EE6B2' : '#1B5E20',
+
+    danger: isDark ? '#FCA5A5' : '#D71920',
+    warn: isDark ? '#FBBF24' : '#9A3412',
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -92,9 +112,9 @@ export default function CredencialScreen() {
       setCachedAt(null);
       setHasCache(false);
 
-      // 1) Intentar cargar cache primero (modo rápido)
       let cacheFound = false;
 
+      // 1) cargar cache primero (modo rápido)
       if (afiliadoDni) {
         try {
           const raw = await AsyncStorage.getItem(cacheKey(afiliadoDni));
@@ -105,25 +125,20 @@ export default function CredencialScreen() {
             setCredencial(parsed.data);
             setHasCache(true);
             setCachedAt(parsed.cachedAt ?? null);
-
-            // ✅ si hay cache, NO mostramos loader “duro”
-            setLoading(false);
+            setLoading(false); // ✅ si hay cache, no spinner largo
           }
         } catch {
           // ignore
         }
       }
 
-      // Si no tenemos DNI o API_BASE, no podemos buscar online.
+      // si falta DNI o API, no podemos fetch online
       if (!afiliadoDni || !API_BASE) {
-        if (!cancelled) {
-          // si no había cache, terminamos loading acá
-          if (!cacheFound) setLoading(false);
-        }
+        if (!cancelled && !cacheFound) setLoading(false);
         return;
       }
 
-      // 2) Si no hay conexión, usar cache y marcar offline
+      // 2) si no hay conexión, usar cache y marcar offline
       try {
         const net = await Network.getNetworkStateAsync();
         const connected = !!net?.isConnected;
@@ -131,7 +146,6 @@ export default function CredencialScreen() {
         if (!connected) {
           if (!cancelled) {
             setOffline(true);
-            // si no hay cache, dejamos el estado como esté (null) y cortamos loading
             if (!cacheFound) setLoading(false);
           }
           return;
@@ -140,7 +154,7 @@ export default function CredencialScreen() {
         // si falla el check, igual intentamos fetch
       }
 
-      // 3) Fetch online (con timeout). Si tarda o falla, nos quedamos con cache.
+      // 3) fetch online (con timeout)
       try {
         const res = await withTimeout(
           fetch(`${API_BASE}/api/servicios/getinfobydni`, {
@@ -156,8 +170,8 @@ export default function CredencialScreen() {
 
         if (cancelled) return;
 
+        // si no ok / inválido / deshabilitado -> dejamos cache si existía
         if (!res.ok || !data || data?.habilitado === false) {
-          // si ya había cache, lo dejamos; si no, null
           if (!cacheFound) setCredencial(null);
           setLoading(false);
           return;
@@ -187,14 +201,13 @@ export default function CredencialScreen() {
 
         setLoading(false);
       } catch {
-        // fallo/timeout: si hay cache, offline; si no, mostramos vacío
+        // timeout/fallo: si hay cache, seguimos con cache y mostramos offline
         if (!cancelled) {
           setOffline(true);
           if (!cacheFound) {
             setCredencial(null);
             setLoading(false);
           }
-          // si había cache, ya estamos mostrando algo (loading ya estaba false)
         }
       }
     })();
@@ -202,54 +215,49 @@ export default function CredencialScreen() {
     return () => {
       cancelled = true;
     };
-  }, [afiliadoDni]);
+  }, [afiliadoDni, API_BASE]);
 
   const missingDni = !afiliadoDni;
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.centered}>
-        <ActivityIndicator size="large" color="#005BBF" />
+      <SafeAreaView style={[styles.centered, { backgroundColor: C.bg }]}>
+        <ActivityIndicator size="large" color={C.link} />
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: C.bg }]}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Text style={styles.backArrow}>‹ Volver</Text>
+          <Text style={[styles.backArrow, { color: C.link }]}>‹ Volver</Text>
         </TouchableOpacity>
       </View>
 
       <View style={styles.brandBlock}>
         <Image source={logo} style={styles.brandLogo} resizeMode="contain" />
-        <View style={styles.divider} />
-        <Text style={styles.planHeading}>TU PLAN</Text>
+        <View style={[styles.divider, { backgroundColor: C.border }]} />
+        <Text style={[styles.planHeading, { color: C.medicGreen }]}>TU PLAN</Text>
 
-        <View style={styles.planBar}>
-          <Text style={styles.planBarValue}>{credencial?.plan || '—'}</Text>
+        <View style={[styles.planBar, { backgroundColor: C.planBg, borderColor: C.border }]}>
+          <Text style={[styles.planBarValue, { color: C.planText }]}>
+            {credencial?.plan || '—'}
+          </Text>
         </View>
 
-        {/* ✅ Estado offline/cache (sin romper UI) */}
         {(offline || cachedAt) && (
           <View style={styles.offlineBox}>
             {offline ? (
-              <Text style={styles.offlineText}>
+              <Text style={[styles.offlineText, { color: C.warn }]}>
                 Sin conexión. Mostrando credencial guardada.
-              </Text>
-            ) : null}
-
-            {cachedAt ? (
-              <Text style={styles.offlineMuted}>
-                Última actualización: {formatDateTime(cachedAt)}
               </Text>
             ) : null}
           </View>
         )}
 
         {!API_BASE && (
-          <Text style={styles.warnText}>
+          <Text style={[styles.warnText, { color: C.muted }]}>
             Falta configurar EXPO_PUBLIC_API_BASE_URL en el .env
           </Text>
         )}
@@ -257,7 +265,7 @@ export default function CredencialScreen() {
 
       <View style={styles.content}>
         {missingDni ? (
-          <Text style={styles.errorText}>
+          <Text style={[styles.errorText, { color: C.danger }]}>
             No tengo tu DNI cargado. Iniciá sesión o consultá tu perfil para sincronizar tus datos.
           </Text>
         ) : credencial ? (
@@ -267,17 +275,16 @@ export default function CredencialScreen() {
               nombre={credencial.nombre}
               dni={credencial.dni}
             />
-            <Text style={styles.legend}>
+            <Text style={[styles.legend, { color: C.muted }]}>
               El uso de esta credencial es exclusivo de su titular y debe presentarse con el documento
               de identidad.
             </Text>
           </>
-        ) : hasCache ? (
-          // Caso raro: cache flag true pero credencial null, lo dejamos como mensaje normal
-          <Text style={styles.errorText}>No se encontraron datos de la credencial.</Text>
         ) : (
-          <Text style={styles.errorText}>
-            No se encontraron datos de la credencial. Conectate a internet para cargarla por primera vez.
+          <Text style={[styles.errorText, { color: C.danger }]}>
+            {hasCache
+              ? 'No se encontraron datos de la credencial.'
+              : 'No se encontraron datos. Conectate a internet para cargarla por primera vez.'}
           </Text>
         )}
       </View>
@@ -285,32 +292,22 @@ export default function CredencialScreen() {
   );
 }
 
-const COLORS = {
-  medicBlue: '#005BBF',
-  medicGreen: '#2FAE3B',
-  planBg: '#E8F5E9',
-  planText: '#1B5E20',
-  divider: '#DADADA',
-  muted: '#444444',
-  danger: '#D71920',
-};
-
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#FFFFFF' },
+  container: { flex: 1 },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
 
   header: { paddingHorizontal: 12, paddingTop: 15, paddingBottom: 4 },
   backButton: { alignSelf: 'flex-start', paddingVertical: 6, paddingHorizontal: 8 },
-  backArrow: { fontSize: 16, color: COLORS.medicBlue },
+  backArrow: { fontSize: 16, fontWeight: '800' },
 
   brandBlock: { alignItems: 'center', paddingHorizontal: 16, paddingBottom: 8 },
   brandLogo: { width: 180, height: 140, marginTop: 4 },
-  divider: { height: 1, alignSelf: 'stretch', backgroundColor: COLORS.divider, marginVertical: 6 },
-  planHeading: { fontSize: 18, fontWeight: '700', color: COLORS.medicGreen, letterSpacing: 1 },
+  divider: { height: 1, alignSelf: 'stretch', marginVertical: 6 },
+
+  planHeading: { fontSize: 18, fontWeight: '900', letterSpacing: 1 },
 
   planBar: {
     marginTop: 8,
-    backgroundColor: COLORS.planBg,
     borderRadius: 10,
     paddingVertical: 10,
     paddingHorizontal: 14,
@@ -319,14 +316,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
+    borderWidth: 1,
   },
-  planBarValue: { fontSize: 16, fontWeight: '800', color: COLORS.planText },
+  planBarValue: { fontSize: 16, fontWeight: '900' },
 
   offlineBox: { marginTop: 10, alignSelf: 'stretch', paddingHorizontal: 16, gap: 4 },
-  offlineText: { fontSize: 12, fontWeight: '800', color: '#9A3412', textAlign: 'center' },
-  offlineMuted: { fontSize: 12, color: COLORS.muted, textAlign: 'center' },
+  offlineText: { fontSize: 12, fontWeight: '900', textAlign: 'center' },
+  offlineMuted: { fontSize: 12, textAlign: 'center', fontWeight: '700' },
 
-  warnText: { marginTop: 10, fontSize: 12, color: COLORS.muted, textAlign: 'center' },
+  warnText: { marginTop: 10, fontSize: 12, textAlign: 'center', fontWeight: '700' },
 
   content: {
     flex: 1,
@@ -335,6 +333,6 @@ const styles = StyleSheet.create({
     paddingBottom: 100,
     paddingHorizontal: 16,
   },
-  legend: { marginTop: 48, fontSize: 12, textAlign: 'center', color: COLORS.muted, lineHeight: 18 },
-  errorText: { color: COLORS.danger, marginBottom: 16, textAlign: 'center' },
+  legend: { marginTop: 48, fontSize: 12, textAlign: 'center', lineHeight: 18, fontWeight: '700' },
+  errorText: { marginBottom: 16, textAlign: 'center', fontWeight: '800' },
 });

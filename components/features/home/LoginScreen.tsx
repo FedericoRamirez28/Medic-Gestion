@@ -52,7 +52,7 @@ export default function HomeScreen() {
             </TouchableOpacity>
           </View>
 
-          <View style={[styles.ambulanceContainer, { paddingBottom: (insets.bottom || 12) + 8 }]}>
+          <View style={[styles.ambulanceContainer, { paddingBottom: (insets.bottom || 1) + 1  }]}>
             <ButtonAmbulance />
           </View>
         </View>
@@ -97,6 +97,6 @@ const styles = StyleSheet.create({
     textDecorationLine: 'underline',
   },
   ambulanceContainer: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 13,
   },
 });

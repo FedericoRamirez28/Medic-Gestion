@@ -33,7 +33,7 @@ const styles = StyleSheet.create({
   underContainer: {
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: '30%',
+    marginTop: '20%',
   },
   boton: {
     backgroundColor: '#f59e0b',

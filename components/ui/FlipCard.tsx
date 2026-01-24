@@ -91,36 +91,60 @@ export default function FlipCard({ numeroSocio, nombre, dni }: CredencialProps) 
               style={styles.bg}
             />
 
-            <View style={styles.glassPill}>
-              <View style={styles.pillTab} />
-              <Text style={styles.emergenciasLabel}>Emergencias</Text>
-              <Text style={styles.emergenciasNumber}>7078 6200</Text>
-            </View>
+            <View style={styles.backWrap}>
+              {/* Pill Emergencias (más compacta) */}
+              <View style={styles.glassPill}>
+                <View style={styles.pillTab} />
+                <Text style={styles.emergenciasLabel} numberOfLines={1}>
+                  Emergencias
+                </Text>
+                <Text style={styles.emergenciasNumber} numberOfLines={1}>
+                  7078 6200
+                </Text>
+              </View>
 
-            <View style={styles.columns}>
-              <View style={styles.col}>
-                <Text style={styles.colTitle}>Atención al Socio</Text>
-                <View style={styles.inline}>
-                  <Ionicons
-                    name="logo-whatsapp"
-                    size={16}
-                    color="#FFFFFF"
-                    style={{ marginRight: 6 }}
-                  />
-                  <Text style={styles.colStrong}>11 2031 8064</Text>
+              {/* ✅ Columnas (sin absolute) */}
+              <View style={styles.columns}>
+                <View style={styles.colLeft}>
+                  <Text style={styles.colTitle} numberOfLines={1}>
+                    Atención al Socio
+                  </Text>
+
+                  <View style={styles.inline}>
+                    <Ionicons
+                      name="logo-whatsapp"
+                      size={15}
+                      color="#FFFFFF"
+                      style={{ marginRight: 6 }}
+                    />
+                    <Text style={styles.colStrong} numberOfLines={1}>
+                      11 2031 8064
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={styles.colRight}>
+                  <Text style={styles.colTitle} numberOfLines={1}>
+                    Solicitar Turnos al
+                  </Text>
+                  <Text style={styles.colText} numberOfLines={2}>
+                    7078 6100 int 307 int 200
+                  </Text>
                 </View>
               </View>
 
-              <View style={styles.col}>
-                <Text style={styles.colTitle}>Solicitar Turnos al</Text>
-                <Text style={styles.colText}>7078 6100 int 307 int 200</Text>
+              {/* ✅ Card azul DEBAJO de las columnas */}
+              <View style={styles.footerCard}>
+                <Text style={styles.footerLine} numberOfLines={1}>
+                  Hipólito Yrigoyen 2246
+                </Text>
+                <Text style={styles.footerLine} numberOfLines={1}>
+                  San Justo Provincia de Bs. As.
+                </Text>
+                <Text style={styles.footerWeb} numberOfLines={1}>
+                  www.medic.com.ar
+                </Text>
               </View>
-            </View>
-
-            <View style={styles.footerCard}>
-              <Text style={styles.footerLine}>Hipólito Yrigoyen 2246</Text>
-              <Text style={styles.footerLine}>San Justo Provincia de Bs. As.</Text>
-              <Text style={styles.footerWeb}>www.medic.com.ar</Text>
             </View>
           </Animated.View>
         </View>
@@ -144,9 +168,7 @@ const styles = StyleSheet.create({
         shadowRadius: 10,
         shadowOffset: { width: 0, height: 6 },
       },
-      android: {
-        elevation: 6,
-      },
+      android: { elevation: 6 },
     }),
   },
 
@@ -167,33 +189,23 @@ const styles = StyleSheet.create({
     backfaceVisibility: 'hidden',
   },
 
-  bg: {
-    ...StyleSheet.absoluteFillObject,
-  },
+  bg: { ...StyleSheet.absoluteFillObject },
 
+  /* ======================= FRONT ======================= */
   frontInner: {
     flex: 1,
     paddingHorizontal: 18,
     paddingVertical: 16,
     justifyContent: 'center',
   },
-  name: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: '#FFFFFF',
-  },
+  name: { fontSize: 20, fontWeight: '800', color: '#FFFFFF' },
   memberLabel: {
     fontSize: 13,
     color: 'rgba(255,255,255,0.95)',
     letterSpacing: 0.2,
     marginTop: 2,
   },
-  memberValue: {
-    fontSize: 30,
-    fontWeight: '900',
-    color: '#FFFFFF',
-    marginTop: -2,
-  },
+  memberValue: { fontSize: 30, fontWeight: '900', color: '#FFFFFF', marginTop: -2 },
   separator: {
     height: 1,
     backgroundColor: 'rgba(255,255,255,0.35)',
@@ -203,7 +215,6 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'baseline', gap: 8 },
   fieldLabel: { color: 'rgba(255,255,255,0.95)', fontSize: 14 },
   fieldValue: { color: '#FFFFFF', fontSize: 16, fontWeight: '800' },
-
   frontCircle: {
     position: 'absolute',
     top: -80,
@@ -214,52 +225,66 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.12)',
   },
 
+  /* ======================= BACK ======================= */
+  backWrap: {
+    flex: 1,
+    paddingTop: 10,
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+    justifyContent: 'space-between',
+  },
+
   glassPill: {
-    position: 'absolute',
-    top: 18,
-    left: 18,
-    right: 18,
-    backgroundColor: 'rgba(255,255,255,0.25)',
+    backgroundColor: 'rgba(255,255,255,0.22)',
     borderRadius: 14,
-    paddingVertical: 10,
-    paddingHorizontal: 18,
+    paddingVertical: 8,
+    height: 60,
+    paddingHorizontal: 16,
     alignItems: 'center',
+    overflow: 'hidden',
   },
   pillTab: {
     position: 'absolute',
     left: 10,
-    top: 12,
-    width: 8,
-    height: 26,
+    top: 10,
+    width: 7,
+    height: 22,
     borderRadius: 4,
     backgroundColor: '#34C3FF',
     opacity: 0.95,
   },
-  emergenciasLabel: { color: '#FFFFFF', fontSize: 16, fontWeight: '800', opacity: 0.95 },
-  emergenciasNumber: { color: '#FFFFFF', fontSize: 32, fontWeight: '900', marginTop: -2 },
+  emergenciasLabel: { color: '#FFFFFF', fontSize: 14, fontWeight: '900', opacity: 0.95 },
+  emergenciasNumber: { color: '#FFFFFF', fontSize: 28, fontWeight: '900', marginTop: -5 },
 
   columns: {
-    position: 'absolute',
-    top: 95,
-    left: 24,
-    right: 18,
+    marginTop: 10,
     flexDirection: 'row',
     justifyContent: 'space-between',
+    gap: 10,
+    flex: 1,
+    alignItems: 'flex-start',
   },
-  col: { width: '48%' },
-  colTitle: { color: '#FFFFFF', fontSize: 16, fontWeight: '700', marginBottom: 6 },
+  colLeft: { width: '45%' },
+  colRight: { width: '55%' },
+
+  colTitle: { color: '#FFFFFF', fontSize: 13, fontWeight: '900', marginBottom: 5 },
   inline: { flexDirection: 'row', alignItems: 'center' },
-  colStrong: { color: '#FFFFFF', fontSize: 15, fontWeight: '800' },
-  colText: { color: '#FFFFFF', fontSize: 14, opacity: 0.95 },
+
+  colStrong: { color: '#FFFFFF', fontSize: 13, fontWeight: '900', flexShrink: 1 },
+  colText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '800',
+    opacity: 0.98,
+    lineHeight: 15,
+    flexShrink: 1,
+  },
 
   footerCard: {
-    position: 'absolute',
-    left: 14,
-    right: 14,
-    bottom: 12,
+    marginTop: -90,
     backgroundColor: '#1686D9',
     borderRadius: 14,
-    paddingVertical: 10,
+    paddingVertical: 5,
     paddingHorizontal: 12,
     alignItems: 'center',
     ...Platform.select({
@@ -269,11 +294,9 @@ const styles = StyleSheet.create({
         shadowRadius: 8,
         shadowOffset: { width: 0, height: 4 },
       },
-      android: {
-        elevation: 4,
-      },
+      android: { elevation: 4 },
     }),
   },
-  footerLine: { color: '#FFFFFF', fontSize: 13.5 },
-  footerWeb: { marginTop: 4, color: '#FFFFFF', fontSize: 14, fontWeight: '800', fontStyle: 'italic' },
+  footerLine: { color: '#FFFFFF', fontSize: 12.5, fontWeight: '800' },
+  footerWeb: { marginTop: 3, color: '#FFFFFF', fontSize: 13, fontWeight: '900', fontStyle: 'italic' },
 });

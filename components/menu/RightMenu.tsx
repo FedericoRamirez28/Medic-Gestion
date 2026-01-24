@@ -256,18 +256,17 @@ export function RightMenu() {
   };
 
   const triggerIntent = (intent: Intent) => {
-    const ph =
-      intent === 'ambulancia'
-        ? 'Quiero ambulancia'
-        : intent === 'reclamos'
-          ? 'Tengo un reclamo'
-          : intent === 'comercial'
-            ? 'Consulta comercial'
-            : intent === 'mi_plan'
-              ? 'Mi plan'
-              : intent === 'mi_estado'
-                ? 'Mi estado'
-                : 'Mi credencial';
+   const ph =
+  intent === 'reclamos'
+    ? 'Tengo un reclamo'
+    : intent === 'comercial'
+      ? 'Consulta comercial'
+      : intent === 'mi_plan'
+        ? 'Mi plan'
+        : intent === 'mi_estado'
+          ? 'Mi estado'
+          : 'Mi credencial';
+
     send(ph);
   };
 
@@ -366,9 +365,6 @@ export function RightMenu() {
           />
 
           <View style={styles.quickRow}>
-            <TouchableOpacity style={[styles.chip, { backgroundColor: theme.colors.chipBg, borderColor: theme.colors.border }]} onPress={() => triggerIntent('ambulancia')}>
-              <Text style={[styles.chipText, { color: theme.colors.chipText }]}>Emergencias 24hs</Text>
-            </TouchableOpacity>
             <TouchableOpacity style={[styles.chip, { backgroundColor: theme.colors.chipBg, borderColor: theme.colors.border }]} onPress={() => triggerIntent('reclamos')}>
               <Text style={[styles.chipText, { color: theme.colors.chipText }]}>Reclamos</Text>
             </TouchableOpacity>

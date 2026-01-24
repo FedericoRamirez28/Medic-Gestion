@@ -1,17 +1,15 @@
 // components/features/home/PrincipalScreen.tsx
 import React, { useMemo } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View, Platform } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import {
-  createBottomTabNavigator,
-  type BottomTabScreenProps,
-  type BottomTabBarButtonProps,
-} from '@react-navigation/bottom-tabs';
-import { PlatformPressable } from '@react-navigation/elements';
-import * as Haptics from 'expo-haptics';
+import { createBottomTabNavigator, type BottomTabScreenProps } from '@react-navigation/bottom-tabs';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAuth } from '@/app/(tabs)/context';
 import { useAppTheme } from '@/components/theme/AppThemeProvider';
+
+// ✅ TU HAPTIC TAB (ajustá el path si hace falta)
+import { HapticTab } from '@/constants/HapticTab';
 
 // Screens reales
 import CredencialScreen from '@/components/features/home/CredencialScreen';
@@ -28,21 +26,6 @@ type RootTabParamList = {
   Prestadores: undefined;
   Credencial: undefined;
 };
-
-/** ✅ Haptic tab pro (no rompe nada) */
-function HapticTab(props: BottomTabBarButtonProps) {
-  return (
-    <PlatformPressable
-      {...props}
-      onPressIn={(ev) => {
-        if (Platform.OS === 'ios') {
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-        }
-        props.onPressIn?.(ev);
-      }}
-    />
-  );
-}
 
 function HeaderBurger() {
   const { open } = useMenu();
@@ -195,6 +178,11 @@ const InicioScreen: React.FC<InicioProps> = ({ navigation }) => {
 
 export default function PrincipalScreen() {
   const { theme } = useAppTheme();
+  const insets = useSafeAreaInsets();
+
+  // ✅ clave para NO superponer con la barra de navegación de Android:
+  const extraBottom = Math.max(insets.bottom, 10); // 10px mínimo por seguridad
+  const baseHeight = 56; // altura base cómoda (sin adivinar demasiado)
 
   return (
     <MenuProvider>
@@ -202,6 +190,8 @@ export default function PrincipalScreen() {
         <Tab.Navigator
           initialRouteName="Inicio"
           backBehavior="history"
+          // ✅ refuerza safe area en tabs (por si algún device raro no lo respeta)
+          safeAreaInsets={{ bottom: extraBottom }}
           screenOptions={({ route }) => ({
             headerShown: true,
             headerStyle: { backgroundColor: theme.colors.headerBg },
@@ -217,10 +207,10 @@ export default function PrincipalScreen() {
               </View>
             ),
 
-            /** ✅ Haptic */
+            // ✅ TU HAPTIC TAB
             tabBarButton: (props) => <HapticTab {...props} />,
 
-            /** ✅ Icon + línea arriba en el tab activo */
+            // ✅ indicador arriba del tab activo
             tabBarIcon: ({ size, color, focused }) => {
               const iconName = ICONS[route.name as keyof RootTabParamList] ?? 'home';
               return (
@@ -238,7 +228,6 @@ export default function PrincipalScreen() {
 
             tabBarLabel: TITLES[route.name as keyof RootTabParamList],
 
-            // performance
             lazy: false,
             freezeOnBlur: true,
             tabBarHideOnKeyboard: true,
@@ -246,12 +235,12 @@ export default function PrincipalScreen() {
             tabBarActiveTintColor: theme.colors.tabActive,
             tabBarInactiveTintColor: theme.colors.tabInactive,
 
+            // ✅ acá está la diferencia: altura/padding según insets
             tabBarStyle: {
               backgroundColor: theme.colors.tabBg,
               borderTopColor: theme.colors.tabBorder,
-              // ✅ evita “pisar” zona de gestos en Android
-              height: Platform.OS === 'android' ? 62 : 78,
-              paddingBottom: Platform.OS === 'android' ? 10 : 18,
+              height: baseHeight + extraBottom,
+              paddingBottom: extraBottom,
               paddingTop: 8,
             },
           })}
@@ -304,7 +293,6 @@ const styles = StyleSheet.create({
   quickTitle: { fontSize: 16, fontWeight: '700' },
   quickSub: { marginTop: 2, fontSize: 13 },
 
-  /** icon wrapper + top active line */
   iconWrap: {
     width: 44,
     alignItems: 'center',

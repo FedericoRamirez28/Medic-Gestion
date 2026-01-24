@@ -9,6 +9,11 @@ export const config = {
   ],
 
   mensajes: {
+     coberturaDisclaimer:
+    'La cobertura exacta puede variar según el plan y la práctica. Algunas requieren autorización previa.',
+  coberturaHowTo:
+    'Decime qué práctica necesitás (ej: resonancia, laboratorio, odontología) y te explico cómo gestionarlo.',
+
     fueraHorario:
       'Nuestro horario de atención administrativa es de 9:00 a 18:00 hs.',
     ambulancia:
