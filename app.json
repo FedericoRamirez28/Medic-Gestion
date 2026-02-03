@@ -13,7 +13,7 @@
       "backgroundColor": "#011E36"
     },
     "android": {
-      "package": "ar.medic.app",
+      "package": "ar.medic.gestion",
       "versionCode": 2,
       "permissions": [],
       "blockedPermissions": [
@@ -33,7 +33,7 @@
       "edgeToEdgeEnabled": true
     },
     "ios": {
-      "bundleIdentifier": "ar.medic.app",
+      "bundleIdentifier": "ar.medic.gestion",
       "supportsTablet": true
     },
     "web": {
