@@ -11,6 +11,7 @@ import {
   Text,
   TouchableOpacity,
   TouchableWithoutFeedback,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import { TextInput } from 'react-native-paper';
@@ -18,10 +19,18 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 type Mode = 'dni' | 'socio';
 
+function clamp(n: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, n));
+}
+
 export default function LoginForm() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { login } = useAuth();
+  const { width } = useWindowDimensions();
+
+  const s = useMemo(() => clamp(width / 390, 0.85, 1.15), [width]);
+  const styles = useMemo(() => createStyles(s), [s]);
 
   const [mode, setMode] = useState<Mode>('dni');
   const [dni, setDni] = useState('');
@@ -65,16 +74,21 @@ export default function LoginForm() {
       style={[styles.tab, mode === id && styles.tabActive]}
       accessibilityRole="button"
       accessibilityLabel={label}
+      activeOpacity={0.9}
     >
-      <Text style={[styles.tabText, mode === id && styles.tabTextActive]}>{label}</Text>
+      <Text style={[styles.tabText, mode === id && styles.tabTextActive]} numberOfLines={1}>
+        {label}
+      </Text>
     </TouchableOpacity>
   );
+
+  const keyboardOffset = (insets.top || 0) + (Platform.OS === 'ios' ? 8 : 0);
 
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={(insets.top || 0) + 8}
-      style={{ alignSelf: 'stretch' }}
+      keyboardVerticalOffset={keyboardOffset}
+      style={styles.kav}
     >
       <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
         <View style={styles.container}>
@@ -92,9 +106,11 @@ export default function LoginForm() {
               mode="outlined"
               placeholder="Ej: 45318128"
               style={styles.input}
+              contentStyle={styles.inputContent}
               returnKeyType="send"
               onSubmitEditing={handleLogin}
               editable={!loading}
+              dense
             />
           ) : (
             <TextInput
@@ -105,9 +121,11 @@ export default function LoginForm() {
               mode="outlined"
               placeholder="Ej: 00509026"
               style={styles.input}
+              contentStyle={styles.inputContent}
               returnKeyType="send"
               onSubmitEditing={handleLogin}
               editable={!loading}
+              dense
             />
           )}
 
@@ -117,12 +135,9 @@ export default function LoginForm() {
             disabled={loading}
             accessibilityRole="button"
             accessibilityLabel="Ingresar"
+            activeOpacity={0.9}
           >
-            {loading ? (
-              <ActivityIndicator />
-            ) : (
-              <Text style={styles.buttonText}>INGRESAR</Text>
-            )}
+            {loading ? <ActivityIndicator /> : <Text style={styles.buttonText}>INGRESAR</Text>}
           </TouchableOpacity>
         </View>
       </TouchableWithoutFeedback>
@@ -130,29 +145,63 @@ export default function LoginForm() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    width: '100%',
-    maxWidth: 420,
-    paddingHorizontal: 12,
-    marginTop: 8,
-    gap: 12,
-    alignSelf: 'center',
-  },
-  tabs: { flexDirection: 'row', backgroundColor: '#eef2f7', borderRadius: 8, padding: 4 },
-  tab: { flex: 1, paddingVertical: 10, borderRadius: 6, alignItems: 'center' },
-  tabActive: { backgroundColor: '#fff' },
-  tabText: { color: '#6b7280', fontWeight: '700' },
-  tabTextActive: { color: '#111827' },
-  input: { backgroundColor: '#fff' },
-  buttonContainer: {
-    backgroundColor: '#f89f51',
-    borderRadius: 8,
-    elevation: 5,
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  buttonText: { color: '#212121', fontSize: 16, fontWeight: '700' },
-});
+function createStyles(s: number) {
+  const maxWidth = 440; // se ve bien en tablets también
+  return StyleSheet.create({
+    kav: {
+      alignSelf: 'stretch',
+      width: '100%',
+    },
+    container: {
+      width: '100%',
+      maxWidth,
+      paddingHorizontal: 12,
+      marginTop: 8 * s,
+      gap: 12 * s,
+      alignSelf: 'center',
+    },
+    tabs: {
+      flexDirection: 'row',
+      backgroundColor: '#eef2f7',
+      borderRadius: 10,
+      padding: 4,
+      gap: 4,
+    },
+    tab: {
+      flex: 1,
+      paddingVertical: clamp(10 * s, 8, 14),
+      borderRadius: 8,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    tabActive: { backgroundColor: '#fff' },
+    tabText: {
+      color: '#6b7280',
+      fontWeight: '700',
+      fontSize: clamp(13 * s, 12, 15),
+      textAlign: 'center',
+    },
+    tabTextActive: { color: '#111827' },
+    input: {
+      backgroundColor: '#fff',
+    },
+    inputContent: {
+      fontSize: clamp(16 * s, 14, 18),
+    },
+    buttonContainer: {
+      backgroundColor: '#f89f51',
+      borderRadius: 10,
+      elevation: 5,
+      paddingVertical: clamp(12 * s, 10, 16),
+      paddingHorizontal: 24,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    buttonText: {
+      color: '#212121',
+      fontSize: clamp(16 * s, 14, 18),
+      fontWeight: '800',
+      letterSpacing: 0.5,
+    },
+  });
+}

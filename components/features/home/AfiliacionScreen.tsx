@@ -15,10 +15,14 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
-  TouchableWithoutFeedback,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import { TextInput } from 'react-native-paper';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+
+// ✅ Fallback Android (abre dialer / mail apps) cuando Linking falla en prod
+import * as IntentLauncher from 'expo-intent-launcher';
 
 type Slide = {
   key: string;
@@ -28,14 +32,61 @@ type Slide = {
   extraInfo?: string;
 };
 
+function clamp(n: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, n));
+}
+
+/**
+ * ✅ Safe open URL robusto:
+ * - iOS: Linking suele ser suficiente
+ * - Android: fallback a intents (dialer / email app chooser) si falla
+ */
 async function safeOpenURL(url: string) {
   try {
-    const can = await Linking.canOpenURL(url);
-    if (!can) throw new Error('cant-open');
+    // algunos dispositivos devuelven false para canOpenURL pero igual abren
+    // entonces primero intentamos openURL directo
     await Linking.openURL(url);
+    return true;
   } catch {
-    Alert.alert('Error', 'No se pudo abrir el enlace en tu dispositivo.');
+    // fallback: intentar canOpenURL + reintentar
+    try {
+      const can = await Linking.canOpenURL(url);
+      if (can) {
+        await Linking.openURL(url);
+        return true;
+      }
+    } catch {}
   }
+
+  // ✅ Fallbacks Android específicos
+  if (Platform.OS === 'android') {
+    try {
+      // TEL fallback -> abre marcador SIEMPRE (ACTION_DIAL)
+      if (url.startsWith('tel:')) {
+        const phone = url.replace('tel:', '').trim();
+        await IntentLauncher.startActivityAsync('android.intent.action.DIAL', {
+          data: `tel:${phone}`,
+        });
+        return true;
+      }
+
+      // MAIL fallback -> abre chooser de apps de mail
+      if (url.startsWith('mailto:')) {
+        // mailto:dest?subject=...&body=...
+        await IntentLauncher.startActivityAsync('android.intent.action.SENDTO', {
+          data: url,
+        });
+        return true;
+      }
+
+      // WhatsApp / https fallback (abrir con VIEW)
+      await IntentLauncher.startActivityAsync('android.intent.action.VIEW', { data: url });
+      return true;
+    } catch {}
+  }
+
+  Alert.alert('Error', 'No se pudo abrir el enlace en tu dispositivo.');
+  return false;
 }
 
 export default function AfiliacionScreen() {
@@ -45,6 +96,11 @@ export default function AfiliacionScreen() {
   const [selectedSlide, setSelectedSlide] = useState<Slide | null>(null);
 
   const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const { width, height } = useWindowDimensions();
+
+  const s = useMemo(() => clamp(width / 390, 0.85, 1.15), [width]);
+  const styles = useMemo(() => createStyles(s, insets, height), [s, insets, height]);
 
   const destinatario = useMemo(() => 'comercial@medic.com.ar', []);
   const telefonoComercialDisplay = useMemo(() => '+54 9 11 3636-3342', []);
@@ -64,13 +120,18 @@ export default function AfiliacionScreen() {
     if (err) return Alert.alert('Falta información', err);
 
     const subject = 'Consulta de alta / acceso (Medic Gestión)';
-    const body =
-      `Nombre: ${nombre}\n` +
-      `Correo: ${correo}\n\n` +
-      `Mensaje:\n${mensaje}`;
+    const body = `Nombre: ${nombre}\nCorreo: ${correo}\n\nMensaje:\n${mensaje}`;
 
     const url = `mailto:${destinatario}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-    await safeOpenURL(url);
+    const ok = await safeOpenURL(url);
+
+    // ✅ Si no hay app de correo configurada, avisamos con un texto útil
+    if (!ok) {
+      Alert.alert(
+        'No se pudo abrir el correo',
+        'No se encontró una app de correo configurada en este dispositivo.\n\nPodés escribirnos por WhatsApp desde el botón verde.'
+      );
+    }
   };
 
   const openWhatsApp = async () => {
@@ -84,19 +145,53 @@ export default function AfiliacionScreen() {
   };
 
   const mailDirect = async () => {
-    await safeOpenURL(`mailto:${destinatario}`);
+    const url = `mailto:${destinatario}`;
+    const ok = await safeOpenURL(url);
+    if (!ok) {
+      Alert.alert(
+        'No se pudo abrir el correo',
+        'No se encontró una app de correo configurada en este dispositivo.\n\nPodés escribirnos por WhatsApp.'
+      );
+    }
   };
 
+  const keyboardOffset = (insets.top || 0) + (Platform.OS === 'ios' ? 8 : 0);
+
   return (
-    <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: '#BFD6EF' }}
-      behavior={Platform.OS === 'android' ? 'height' : 'padding'}
-    >
-      <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
-        <View style={{ flex: 1 }}>
-          <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
+    <SafeAreaView style={styles.safe}>
+      <KeyboardAvoidingView
+        style={styles.flex}
+        behavior={Platform.OS === 'android' ? 'height' : 'padding'}
+        keyboardVerticalOffset={keyboardOffset}
+      >
+        <View style={styles.flex}>
+          {/* Background por debajo */}
+          <View style={StyleSheet.absoluteFill} pointerEvents="none">
+            <View style={styles.bg} />
+          </View>
+
+          <ScrollView
+            style={styles.flex}
+            contentContainerStyle={styles.container}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
+            onScrollBeginDrag={Keyboard.dismiss}
+            scrollEventThrottle={16}
+            decelerationRate="fast"
+            overScrollMode="always"
+            alwaysBounceVertical
+            nestedScrollEnabled
+          >
+            {/* Header */}
             <View style={styles.header}>
-              <TouchableOpacity style={styles.botonLogin} onPress={() => router.push('/Login')}>
+              <TouchableOpacity
+                style={styles.botonLogin}
+                onPress={() => router.push('/Login')}
+                accessibilityRole="button"
+                accessibilityLabel="Ingresar"
+                activeOpacity={0.9}
+              >
                 <Text style={styles.textoBotonLogin}>INGRESAR</Text>
               </TouchableOpacity>
 
@@ -107,11 +202,9 @@ export default function AfiliacionScreen() {
               />
             </View>
 
-            <View style={{ padding: 8 }}>
+            <View style={styles.hero}>
               <Text style={styles.titulo}>Bienvenidos</Text>
-              <Text style={styles.subtitulo}>
-                Plataforma de gestión y acceso para usuarios habilitados.
-              </Text>
+              <Text style={styles.subtitulo}>Plataforma de gestión y acceso para usuarios habilitados.</Text>
             </View>
 
             <View style={styles.cajaTexto}>
@@ -121,14 +214,16 @@ export default function AfiliacionScreen() {
               </Text>
             </View>
 
-            <View>
+            <View style={styles.sectionHead}>
               <Text style={styles.bloqueTitulo}>¿Qué podés hacer en la app?</Text>
               <View style={styles.lineaInferior} />
             </View>
 
-            <OffersCarousel onSlidePress={(item: Slide) => setSelectedSlide(item)} />
+            <View style={styles.carouselWrap}>
+              <OffersCarousel onSlidePress={(item: Slide) => setSelectedSlide(item)} />
+            </View>
 
-            <View>
+            <View style={styles.sectionHead}>
               <View style={styles.lineaInferior2} />
               <Text style={styles.bloqueTitulo}>Contacto</Text>
             </View>
@@ -140,27 +235,35 @@ export default function AfiliacionScreen() {
             </View>
 
             <View style={styles.contactoContainer}>
-              <TouchableOpacity style={styles.contactoFila} onPress={callPhone}>
+              <TouchableOpacity style={styles.contactoFila} onPress={callPhone} activeOpacity={0.85}>
                 <Image source={require('@/assets/icons/telefono-icon-hd.png')} style={styles.iconoContacto} />
-                <Text style={styles.iconBox}>{telefonoComercialDisplay}</Text>
+                <Text style={styles.iconBox} numberOfLines={2}>
+                  {telefonoComercialDisplay}
+                </Text>
               </TouchableOpacity>
 
-              <TouchableOpacity style={styles.contactoFila} onPress={mailDirect}>
+              <TouchableOpacity style={styles.contactoFila} onPress={mailDirect} activeOpacity={0.85}>
                 <Image source={require('@/assets/icons/mail-icon-hd.png')} style={styles.iconoContacto} />
-                <Text style={styles.iconBox}>{destinatario}</Text>
+                <Text style={styles.iconBox} numberOfLines={2}>
+                  {destinatario}
+                </Text>
               </TouchableOpacity>
             </View>
 
-            <View>
+            <View style={styles.sectionHead}>
               <View style={styles.lineaInferior2} />
               <Text style={styles.bloqueTitulo}>Formulario de contacto</Text>
+            </View>
 
+            <View style={styles.form}>
               <TextInput
                 label="Tu nombre"
                 mode="outlined"
                 value={nombre}
                 onChangeText={setNombre}
                 style={styles.input}
+                contentStyle={styles.inputContent}
+                dense
               />
 
               <TextInput
@@ -171,6 +274,8 @@ export default function AfiliacionScreen() {
                 value={correo}
                 onChangeText={setCorreo}
                 style={styles.input}
+                contentStyle={styles.inputContent}
+                dense
               />
 
               <TextInput
@@ -179,29 +284,34 @@ export default function AfiliacionScreen() {
                 multiline
                 value={mensaje}
                 onChangeText={setMensaje}
-                style={styles.input}
+                style={[styles.input, styles.inputMultiline]}
+                contentStyle={[styles.inputContent, styles.inputMultilineContent]}
               />
 
-              <TouchableOpacity style={styles.botonEnviar} onPress={handleEnviar}>
+              <TouchableOpacity style={styles.botonEnviar} onPress={handleEnviar} activeOpacity={0.9}>
                 <Text style={styles.botonEnviarTexto}>ENVIAR</Text>
               </TouchableOpacity>
             </View>
 
-            <View style={{ height: 90 }} />
+            {/* espacio para que WhatsApp no tape */}
+            <View style={{ height: styles.__spacerBottom.height }} />
           </ScrollView>
 
+          {/* Floating WhatsApp */}
           {!selectedSlide && (
-            <TouchableOpacity style={styles.fixedWhatsApp} onPress={openWhatsApp} accessibilityRole="button">
+            <TouchableOpacity
+              style={styles.fixedWhatsApp}
+              onPress={openWhatsApp}
+              accessibilityRole="button"
+              accessibilityLabel="Abrir WhatsApp"
+              activeOpacity={0.9}
+            >
               <Image source={whatsappIcon} style={styles.whatsappIcon} resizeMode="contain" />
             </TouchableOpacity>
           )}
 
-          <Modal
-            visible={!!selectedSlide}
-            transparent
-            animationType="fade"
-            onRequestClose={() => setSelectedSlide(null)}
-          >
+          {/* Modal */}
+          <Modal visible={!!selectedSlide} transparent animationType="fade" onRequestClose={() => setSelectedSlide(null)}>
             <Pressable style={styles.modalBg} onPress={() => setSelectedSlide(null)}>
               <Pressable style={styles.modalContent} onPress={() => {}}>
                 <TouchableOpacity style={styles.modalClose} onPress={() => setSelectedSlide(null)} hitSlop={24}>
@@ -210,196 +320,266 @@ export default function AfiliacionScreen() {
 
                 <Text style={styles.modalTitle}>{selectedSlide?.title}</Text>
 
-                <ScrollView style={styles.modalBody} keyboardShouldPersistTaps="handled">
+                <ScrollView
+                  style={styles.modalBody}
+                  contentContainerStyle={styles.modalBodyContent}
+                  keyboardShouldPersistTaps="handled"
+                  showsVerticalScrollIndicator={false}
+                  scrollEventThrottle={16}
+                  decelerationRate="fast"
+                  overScrollMode="always"
+                  alwaysBounceVertical
+                >
                   <Text style={styles.modalText}>{selectedSlide?.extraInfo || ''}</Text>
                 </ScrollView>
               </Pressable>
             </Pressable>
           </Modal>
         </View>
-      </TouchableWithoutFeedback>
-    </KeyboardAvoidingView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    paddingHorizontal: 16,
-    gap: 20,
-    paddingBottom: 20,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: '#BFD6EF',
-    padding: 16,
-    elevation: 15,
-  },
-  logo: { width: 150, height: 80 },
+function createStyles(
+  s: number,
+  insets: { top: number; bottom: number; left: number; right: number },
+  height: number
+) {
+  const isShort = height < 720;
 
-  botonLogin: {
-    backgroundColor: '#f89f51ff',
-    elevation: 5,
-    marginRight: 20,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 5,
-    width: 100,
-  },
-  textoBotonLogin: {
-    color: '#424242',
-    textAlign: 'center',
-    fontFamily: 'Roboto-SemiBold',
-    fontSize: 16,
-  },
+  const padH = clamp(16, 14, 18);
+  const titleSize = clamp(40 * s, 26, 44);
+  const subSize = clamp(22 * s, 14, 24);
+  const blockTitle = clamp(28 * s, 18, 30);
+  const body = clamp(16 * s, 13, 18);
+  const contactText = clamp(24 * s, 14, 22);
 
-  titulo: {
-    textAlign: 'left',
-    fontSize: 40,
-    marginTop: 8,
-    color: '#111111',
-    fontFamily: 'Roboto-SemiBold',
-  },
-  subtitulo: {
-    fontSize: 22,
-    marginTop: 8,
-    marginBottom: 18,
-    textAlign: 'center',
-    fontWeight: '600',
-    color: '#424242',
-  },
+  const logoW = clamp(150 * s, 110, 170);
+  const logoH = clamp(80 * s, 54, 92);
 
-  cajaTexto: {
-    backgroundColor: '#3F83CF',
-    padding: 8,
-    borderRadius: 8,
-    elevation: 10,
-  },
-  texto: {
-    margin: 8,
-    fontFamily: 'Roboto-Regular',
-    fontSize: 16,
-    color: '#F5F5F5',
-  },
+  const waSize = clamp(40 * s, 30, 44);
+  const waPad = clamp(16 * s, 12, 18);
 
-  lineaInferior: {
-    height: 2,
-    width: '48%',
-    backgroundColor: '#3F83CF',
-    borderRadius: 2,
-  },
-  lineaInferior2: {
-    height: 2,
-    width: '100%',
-    backgroundColor: '#3F83CF',
-    borderRadius: 2,
-  },
+  const bottomSafe = Math.max(insets.bottom || 0, 10);
+  const waBottom = bottomSafe + 14;
+  const spacerBottom = waBottom + waPad * 2 + waSize;
 
-  bloqueTitulo: {
-    textAlign: 'left',
-    paddingTop: 24,
-    paddingBottom: 24,
-    fontSize: 28,
-    fontFamily: 'Roboto-SemiBold',
-    color: '#3A3A3A',
-  },
+  return StyleSheet.create({
+    __spacerBottom: { height: spacerBottom },
+    flex: { flex: 1 },
+    safe: { flex: 1, backgroundColor: '#BFD6EF' },
+    bg: { flex: 1, backgroundColor: '#BFD6EF' },
 
-  contactoContainer: {
-    marginHorizontal: 20,
-    marginTop: 20,
-    alignItems: 'flex-start',
-  },
-  contactoFila: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  iconoContacto: {
-    width: 40,
-    height: 40,
-    marginRight: 10,
-    resizeMode: 'contain',
-  },
-  iconBox: {
-    fontSize: 24,
-    color: '#212121',
-    fontFamily: 'Roboto-Regular',
-  },
+    container: {
+      flexGrow: 1,
+      paddingHorizontal: padH,
+      paddingBottom: 16,
+      gap: clamp(18 * s, 12, 22),
+    },
 
-  input: {
-    backgroundColor: '#F5F5F5',
-    width: '100%',
-    borderRadius: 8,
-    marginTop: 12,
-  },
+    header: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      backgroundColor: '#BFD6EF',
+      paddingVertical: clamp(12 * s, 10, 16),
+      paddingHorizontal: 12,
+      borderRadius: 12,
+      elevation: 12,
+      marginTop: clamp(6 * s, 4, 10),
+    },
 
-  botonEnviar: {
-    backgroundColor: '#f89f51ff',
-    padding: 14,
-    borderRadius: 8,
-    width: '100%',
-    marginTop: 20,
-    marginBottom: 10,
-  },
-  botonEnviarTexto: {
-    color: '#424242',
-    fontWeight: 'bold',
-    textAlign: 'center',
-  },
+    logo: { width: logoW, height: logoH },
 
-  fixedWhatsApp: {
-    position: 'absolute',
-    bottom: 30,
-    right: 20,
-    backgroundColor: '#25D366',
-    borderRadius: 50,
-    padding: 16,
-    zIndex: 99,
-    elevation: 10,
-  },
-  whatsappIcon: {
-    width: 40,
-    height: 40,
-    alignSelf: 'center',
-  },
+    botonLogin: {
+      backgroundColor: '#f89f51ff',
+      elevation: 4,
+      paddingVertical: clamp(8 * s, 7, 10),
+      paddingHorizontal: clamp(12 * s, 10, 14),
+      borderRadius: 10,
+      minWidth: clamp(100 * s, 86, 112),
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
 
-  modalBg: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 16,
-  },
-  modalContent: {
-    width: '85%',
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 30,
-    alignItems: 'center',
-  },
-  modalClose: {
-    position: 'absolute',
-    top: 10,
-    right: 10,
-    zIndex: 10,
-    borderRadius: 18,
-    padding: 4,
-  },
-  modalCloseText: { fontSize: 28, color: '#2A2A2A' },
-  modalTitle: {
-    fontFamily: 'Roboto-SemiBold',
-    fontSize: 22,
-    color: '#2A2A2A',
-    marginBottom: 18,
-    marginTop: 8,
-    textAlign: 'center',
-  },
-  modalBody: { maxHeight: 420, width: '100%' },
-  modalText: {
-    fontFamily: 'Roboto-Regular',
-    fontSize: 16,
-    color: '#424242',
-    textAlign: 'left',
-  },
-});
+    textoBotonLogin: {
+      color: '#424242',
+      textAlign: 'center',
+      fontFamily: 'Roboto-SemiBold',
+      fontSize: clamp(16 * s, 13, 17),
+      letterSpacing: 0.5,
+    },
+
+    hero: { paddingHorizontal: 6, paddingTop: isShort ? 2 : 8 },
+
+    titulo: {
+      textAlign: 'left',
+      fontSize: titleSize,
+      marginTop: 6,
+      color: '#111111',
+      fontFamily: 'Roboto-SemiBold',
+      lineHeight: clamp(titleSize + 6, 30, 54),
+    },
+
+    subtitulo: {
+      fontSize: subSize,
+      marginTop: 8,
+      marginBottom: 6,
+      textAlign: 'left',
+      fontWeight: '600',
+      color: '#424242',
+      lineHeight: clamp(subSize + 6, 18, 34),
+    },
+
+    cajaTexto: {
+      backgroundColor: '#3F83CF',
+      padding: clamp(12 * s, 10, 14),
+      borderRadius: 12,
+      elevation: 8,
+    },
+
+    texto: {
+      fontFamily: 'Roboto-Regular',
+      fontSize: body,
+      color: '#F5F5F5',
+      lineHeight: clamp(body + 7, 18, 28),
+    },
+
+    sectionHead: { gap: 10 },
+
+    lineaInferior: {
+      height: 2,
+      width: '55%',
+      backgroundColor: '#3F83CF',
+      borderRadius: 2,
+    },
+
+    lineaInferior2: {
+      height: 2,
+      width: '100%',
+      backgroundColor: '#3F83CF',
+      borderRadius: 2,
+    },
+
+    bloqueTitulo: {
+      textAlign: 'left',
+      paddingTop: clamp(18 * s, 12, 22),
+      paddingBottom: clamp(8 * s, 6, 12),
+      fontSize: blockTitle,
+      fontFamily: 'Roboto-SemiBold',
+      color: '#3A3A3A',
+      lineHeight: clamp(blockTitle + 6, 24, 40),
+    },
+
+    carouselWrap: { borderRadius: 14, overflow: 'hidden' },
+
+    contactoContainer: { marginHorizontal: 4, marginTop: 4, gap: 12 },
+    contactoFila: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+
+    iconoContacto: {
+      width: clamp(40 * s, 28, 44),
+      height: clamp(40 * s, 28, 44),
+      resizeMode: 'contain',
+    },
+
+    iconBox: {
+      flex: 1,
+      fontSize: contactText,
+      color: '#212121',
+      fontFamily: 'Roboto-Regular',
+      lineHeight: clamp(contactText + 6, 18, 30),
+    },
+
+    form: { gap: 10 },
+
+    input: {
+      backgroundColor: '#F5F5F5',
+      width: '100%',
+      borderRadius: 12,
+      marginTop: 10,
+    },
+
+    inputContent: {
+      fontSize: clamp(16 * s, 14, 18),
+      lineHeight: clamp(20 * s, 18, 26),
+    },
+
+    inputMultiline: { minHeight: clamp(120 * s, 90, 160) },
+    inputMultilineContent: { minHeight: clamp(120 * s, 90, 160) },
+
+    botonEnviar: {
+      backgroundColor: '#f89f51ff',
+      paddingVertical: clamp(14 * s, 12, 16),
+      borderRadius: 12,
+      width: '100%',
+      marginTop: 14,
+      marginBottom: 10,
+      elevation: 4,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+
+    botonEnviarTexto: {
+      color: '#424242',
+      fontWeight: '900',
+      textAlign: 'center',
+      fontSize: clamp(16 * s, 14, 18),
+      letterSpacing: 0.5,
+    },
+
+    fixedWhatsApp: {
+      position: 'absolute',
+      bottom: waBottom,
+      right: 16,
+      backgroundColor: '#25D366',
+      borderRadius: 999,
+      padding: waPad,
+      zIndex: 99,
+      elevation: 12,
+    },
+
+    whatsappIcon: { width: waSize, height: waSize, alignSelf: 'center' },
+
+    modalBg: {
+      flex: 1,
+      backgroundColor: 'rgba(0,0,0,0.45)',
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: 16,
+    },
+
+    modalContent: {
+      width: '90%',
+      maxWidth: 520,
+      backgroundColor: '#fff',
+      borderRadius: 18,
+      padding: clamp(22 * s, 16, 26),
+      alignItems: 'center',
+      maxHeight: isShort ? '80%' : '70%',
+    },
+
+    modalClose: { position: 'absolute', top: 10, right: 10, zIndex: 10, borderRadius: 18, padding: 6 },
+    modalCloseText: { fontSize: clamp(28 * s, 22, 30), color: '#2A2A2A' },
+
+    modalTitle: {
+      fontFamily: 'Roboto-SemiBold',
+      fontSize: clamp(22 * s, 16, 24),
+      color: '#2A2A2A',
+      marginBottom: 12,
+      marginTop: 8,
+      textAlign: 'center',
+      lineHeight: clamp(28 * s, 20, 34),
+    },
+
+    modalBody: { width: '100%', flexGrow: 0 },
+    modalBodyContent: { paddingBottom: 8 },
+    modalText: {
+      fontFamily: 'Roboto-Regular',
+      fontSize: clamp(16 * s, 13, 18),
+      color: '#424242',
+      textAlign: 'left',
+      lineHeight: clamp(22 * s, 18, 28),
+    },
+  });
+}

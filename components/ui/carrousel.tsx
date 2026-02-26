@@ -1,16 +1,14 @@
-import React, { useRef } from 'react';
+import React, { useMemo, useRef } from 'react';
 import {
-  Dimensions,
   ImageBackground,
   StyleSheet,
   Text,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import { useSharedValue } from 'react-native-reanimated';
 import Carousel, { ICarouselInstance, Pagination } from 'react-native-reanimated-carousel';
-
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 export type Slide = {
   key: string;
@@ -94,28 +92,37 @@ Tip
   },
 ];
 
+function clamp(n: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, n));
+}
+
 export default function OffersCarousel({ onSlidePress }: OffersCarouselProps) {
   const ref = useRef<ICarouselInstance>(null);
   const progress = useSharedValue(0);
+  const { width, height } = useWindowDimensions();
+
+  const s = useMemo(() => clamp(width / 390, 0.85, 1.15), [width]);
+
+  const sidePadding = clamp(16, 14, 18);
+  const cardW = Math.min(width - sidePadding * 2, 520);
+  const cardH = clamp(200 * s, 160, height < 720 ? 185 : 220);
+
+  const styles = useMemo(() => createStyles(s, cardW, cardH), [s, cardW, cardH]);
 
   const onPressDot = (index: number) => {
     ref.current?.scrollTo({ index, animated: true });
   };
 
   const renderItem = ({ item }: { item: Slide }) => (
-    <TouchableOpacity
-      activeOpacity={0.85}
-      onPress={() => onSlidePress?.(item)}
-      style={styles.slide}
-    >
-      <ImageBackground
-        source={item.img}
-        style={StyleSheet.absoluteFill}
-        imageStyle={styles.bg}
-      />
+    <TouchableOpacity activeOpacity={0.9} onPress={() => onSlidePress?.(item)} style={styles.slide}>
+      <ImageBackground source={item.img} style={StyleSheet.absoluteFill} imageStyle={styles.bg} />
       <View style={styles.overlay}>
-        <Text style={styles.title}>{item.title}</Text>
-        <Text style={styles.subtitle}>{item.subtitle}</Text>
+        <Text style={styles.title} numberOfLines={1}>
+          {item.title}
+        </Text>
+        <Text style={styles.subtitle} numberOfLines={5}>
+          {item.subtitle}
+        </Text>
       </View>
     </TouchableOpacity>
   );
@@ -124,18 +131,24 @@ export default function OffersCarousel({ onSlidePress }: OffersCarouselProps) {
     <View style={styles.container}>
       <Carousel
         ref={ref}
-        width={SCREEN_WIDTH - 32}
-        height={200}
+        width={cardW}
+        height={cardH}
         data={slides}
         loop
         pagingEnabled
         autoPlay
         autoPlayInterval={4000}
+        renderItem={renderItem}
+        style={styles.carousel}
+        onConfigurePanGesture={(gesture) => {
+          // ✅ súper permisivo al scroll vertical del padre
+          gesture
+            .activeOffsetX([-24, 24]) // requiere intención horizontal clara
+            .failOffsetY([-2, 2]);     // con mínimo gesto vertical, suelta y deja scrollear
+        }}
         onProgressChange={(_, absoluteProgress) => {
           progress.value = absoluteProgress;
         }}
-        renderItem={renderItem}
-        style={styles.carousel}
       />
 
       <Pagination.Basic
@@ -150,30 +163,49 @@ export default function OffersCarousel({ onSlidePress }: OffersCarouselProps) {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { marginVertical: 24, alignItems: 'center' },
-  carousel: { alignSelf: 'center' },
-  slide: { width: '100%', height: 200, borderRadius: 8, overflow: 'hidden' },
-  bg: { opacity: 0.2, backgroundColor: '#424242' },
-  overlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: '#F5F5F5',
-    padding: 16,
-    justifyContent: 'center',
-    borderRadius: 8,
-  },
-  title: {
-    fontFamily: 'Roboto-SemiBold',
-    fontSize: 24,
-    color: '#2A2A2A',
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontFamily: 'Roboto-Regular',
-    fontSize: 16,
-    color: '#424242',
-  },
-  pagination: { gap: 6, marginTop: 12 },
-  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#BDBDBD' },
-  activeDot: { backgroundColor: '#3F83CF' },
-});
+function createStyles(s: number, cardW: number, cardH: number) {
+  const radius = clamp(14 * s, 10, 16);
+  const pad = clamp(16 * s, 12, 18);
+
+  return StyleSheet.create({
+    container: {
+      marginVertical: clamp(16 * s, 12, 20),
+      alignItems: 'center',
+      width: '100%',
+    },
+    carousel: { alignSelf: 'center' },
+    slide: {
+      width: cardW,
+      height: cardH,
+      borderRadius: radius,
+      overflow: 'hidden',
+    },
+    bg: {
+      opacity: 0.12,
+      backgroundColor: '#424242',
+    },
+    overlay: {
+      ...StyleSheet.absoluteFillObject,
+      backgroundColor: '#F5F5F5',
+      padding: pad,
+      justifyContent: 'center',
+      borderRadius: radius,
+    },
+    title: {
+      fontFamily: 'Roboto-SemiBold',
+      fontSize: clamp(24 * s, 16, 24),
+      color: '#2A2A2A',
+      marginBottom: clamp(8 * s, 6, 10),
+      lineHeight: clamp(30 * s, 20, 32),
+    },
+    subtitle: {
+      fontFamily: 'Roboto-Regular',
+      fontSize: clamp(16 * s, 13, 17),
+      color: '#424242',
+      lineHeight: clamp(22 * s, 18, 26),
+    },
+    pagination: { gap: 6, marginTop: 12 },
+    dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#BDBDBD' },
+    activeDot: { backgroundColor: '#3F83CF' },
+  });
+}

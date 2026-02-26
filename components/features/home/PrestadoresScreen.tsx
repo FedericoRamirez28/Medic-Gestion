@@ -1,7 +1,6 @@
 import { useRouter } from 'expo-router';
-import React, { useEffect, useMemo, useState, useCallback } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  Dimensions,
   FlatList,
   Image,
   Pressable,
@@ -9,11 +8,13 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
+  useWindowDimensions,
   View,
   Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppTheme } from '@/components/theme/AppThemeProvider';
 
 // Datos dummy de prestadores (con coords para poder filtrar por distancia)
@@ -91,8 +92,6 @@ const prestadores: Prestador[] = [
   },
 ];
 
-const cardWidth = Dimensions.get('window').width - 24;
-
 // Normalización simple (tildes + minúsculas + espacios)
 function normalize(s: string) {
   return (s || '')
@@ -114,8 +113,13 @@ function distanceKm(aLat: number, aLng: number, bLat: number, bLng: number) {
   const x =
     Math.sin(dLat / 2) * Math.sin(dLat / 2) +
     Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+
   const c = 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
   return R * c;
+}
+
+function clamp(n: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, n));
 }
 
 function Chip({
@@ -124,12 +128,14 @@ function Chip({
   disabled,
   onPress,
   C,
+  styles,
 }: {
   label: string;
   active?: boolean;
   disabled?: boolean;
   onPress?: () => void;
   C: any;
+  styles: ReturnType<typeof createStyles>;
 }) {
   return (
     <Pressable
@@ -139,7 +145,10 @@ function Chip({
       }}
       style={[
         styles.chip,
-        { borderColor: active ? C.chipBorderActive : C.border, backgroundColor: active ? C.chipBgActive : C.surface },
+        {
+          borderColor: active ? C.chipBorderActive : C.border,
+          backgroundColor: active ? C.chipBgActive : C.surface,
+        },
         disabled ? { opacity: 0.45 } : null,
       ]}
       accessibilityRole="button"
@@ -156,11 +165,23 @@ function Chip({
 export default function PrestadoresScreen() {
   const router = useRouter();
   const { theme } = useAppTheme();
+  const insets = useSafeAreaInsets();
+  const { width, height } = useWindowDimensions();
+
+  const s = useMemo(() => clamp(width / 390, 0.85, 1.15), [width]);
+  const isShort = height < 720;
+
+  // ✅ ancho de card responsive (cap para tablets)
+  const cardW = useMemo(() => {
+    const pad = clamp(12 * s, 10, 14);
+    return Math.min(width - pad * 2, 560);
+  }, [width, s]);
+
+  const styles = useMemo(() => createStyles(s, cardW, isShort, insets.top), [s, cardW, isShort, insets.top]);
 
   const isDark = !!theme?.isDark;
   const colors = theme?.colors;
 
-  // ✅ no existe `primary` -> usamos tabActive como “accent/link”
   const C = {
     bg: colors?.bg ?? (isDark ? '#0B1220' : '#F9FAFB'),
     surface: colors?.surface ?? (isDark ? '#0F1B2D' : '#FFFFFF'),
@@ -170,18 +191,15 @@ export default function PrestadoresScreen() {
     border: colors?.border ?? (isDark ? '#22324A' : '#E2E8F0'),
     link: colors?.tabActive ?? '#005BBF',
 
-    // chips
     chipBgActive: isDark ? 'rgba(34,197,94,0.18)' : 'rgba(30, 86, 49, 0.14)',
     chipBorderActive: isDark ? 'rgba(34,197,94,0.45)' : 'rgba(30, 86, 49, 0.45)',
     chipTextActive: isDark ? '#86EFAC' : '#1E5631',
     chipTextInactive: isDark ? '#CBD5E1' : '#334155',
 
-    // search
     searchBorder: isDark ? '#2B3B55' : '#E2E8F0',
     clearBg: isDark ? 'rgba(99,102,241,0.18)' : '#EEF2FF',
     clearText: isDark ? '#C7D2FE' : '#1E5631',
 
-    // accents
     title: isDark ? '#E5E7EB' : '#0F172A',
     providerName: '#0E7490',
     phone: '#1E5631',
@@ -189,12 +207,10 @@ export default function PrestadoresScreen() {
     emptyIcon: isDark ? '#94A3B8' : '#64748B',
   };
 
-  // filtros
   const [query, setQuery] = useState('');
   const [especialidadSel, setEspecialidadSel] = useState<string>('Todas');
-  const [distSel, setDistSel] = useState<number | null>(null); // null = sin limite
+  const [distSel, setDistSel] = useState<number | null>(null);
 
-  // ubicación (opcional)
   const [myPos, setMyPos] = useState<{ lat: number; lng: number } | null>(null);
   const [locEnabled, setLocEnabled] = useState<boolean>(false);
 
@@ -262,17 +278,14 @@ export default function PrestadoresScreen() {
         return { ...p, _km: km };
       })
       .filter((p: any) => {
-        // texto (tokens)
         if (q) {
           const hay = normalize([p.nombre, p.especialidad, p.direccion].join(' '));
           const tokens = q.split(' ').filter(Boolean);
           if (!tokens.every((t) => hay.includes(t))) return false;
         }
 
-        // especialidad
         if (especialidadSel !== 'Todas' && p.especialidad !== especialidadSel) return false;
 
-        // distancia (solo si hay ubicación y coords)
         if (distSel != null) {
           if (!myPos || p._km == null) return false;
           if (p._km > distSel) return false;
@@ -296,7 +309,7 @@ export default function PrestadoresScreen() {
   return (
     <View style={[styles.container, { backgroundColor: C.bg }]}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}>
+        <TouchableOpacity onPress={() => router.back()} activeOpacity={0.85}>
           <View style={styles.backButton}>
             <Text style={[styles.backArrow, { color: C.link }]}>‹ Volver</Text>
           </View>
@@ -306,7 +319,10 @@ export default function PrestadoresScreen() {
       <FlatList
         data={filtered as any[]}
         keyExtractor={(item) => item.id}
-        contentContainerStyle={{ paddingBottom: 16 }}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.listContent}
+        keyboardShouldPersistTaps="handled"
+        ItemSeparatorComponent={() => <View style={{ height: styles.__sep.height }} />}
         ListHeaderComponent={
           <View style={styles.filtersBox}>
             <Text style={[styles.screenTitle, { color: C.title }]}>Prestadores</Text>
@@ -323,7 +339,12 @@ export default function PrestadoresScreen() {
                 returnKeyType="search"
               />
               {(query || especialidadSel !== 'Todas' || distSel != null) ? (
-                <Pressable onPress={resetFilters} style={[styles.clearBtn, { backgroundColor: C.clearBg }]}>
+                <Pressable
+                  onPress={resetFilters}
+                  style={[styles.clearBtn, { backgroundColor: C.clearBg }]}
+                  accessibilityRole="button"
+                  accessibilityLabel="Limpiar filtros"
+                >
                   <Text style={[styles.clearText, { color: C.clearText }]}>Limpiar</Text>
                 </Pressable>
               ) : null}
@@ -339,6 +360,7 @@ export default function PrestadoresScreen() {
                   active={especialidadSel === esp}
                   onPress={() => setEspecialidadSel(esp)}
                   C={C}
+                  styles={styles}
                 />
               ))}
             </View>
@@ -346,7 +368,9 @@ export default function PrestadoresScreen() {
             {/* Distancia */}
             <View style={{ marginTop: 10 }}>
               <Text style={[styles.filterLabel, { color: C.text }]}>Distancia</Text>
-              {!locEnabled ? <Text style={[styles.hint, { color: C.muted }]}>Activá ubicación para filtrar por distancia.</Text> : null}
+              {!locEnabled ? (
+                <Text style={[styles.hint, { color: C.muted }]}>Activá ubicación para filtrar por distancia.</Text>
+              ) : null}
 
               <View style={styles.chipsWrap}>
                 {distOptions.map((opt) => {
@@ -361,6 +385,7 @@ export default function PrestadoresScreen() {
                       disabled={disabled}
                       onPress={() => setDistSel(opt.value)}
                       C={C}
+                      styles={styles}
                     />
                   );
                 })}
@@ -375,9 +400,8 @@ export default function PrestadoresScreen() {
             </View>
           </View>
         }
-        ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
         renderItem={({ item }: { item: any }) => (
-          <View style={[styles.card, { width: cardWidth, backgroundColor: C.card, borderColor: C.border }]}>
+          <View style={[styles.card, { backgroundColor: C.card, borderColor: C.border }]}>
             <View style={[styles.logoBox, { backgroundColor: C.logoBg, borderColor: C.border }]}>
               <Image source={item.avatar} style={styles.logoImg} />
             </View>
@@ -398,7 +422,9 @@ export default function PrestadoresScreen() {
               </Text>
 
               <View style={styles.rowBottom}>
-                <Text style={[styles.telefono, { color: C.phone }]}>{item.telefono}</Text>
+                <Text style={[styles.telefono, { color: C.phone }]} numberOfLines={1}>
+                  {item.telefono}
+                </Text>
 
                 {item._km != null ? (
                   <Text style={[styles.distance, { color: C.text }]}>{item._km.toFixed(1)} km</Text>
@@ -413,9 +439,7 @@ export default function PrestadoresScreen() {
           <View style={[styles.emptyBox, { backgroundColor: C.surface, borderColor: C.border }]}>
             <Ionicons name="search-outline" size={28} color={C.emptyIcon} />
             <Text style={[styles.emptyTitle, { color: C.text }]}>No encontramos resultados</Text>
-            <Text style={[styles.emptySub, { color: C.muted }]}>
-              Probá otra palabra, sacá un filtro o tocá “Limpiar”.
-            </Text>
+            <Text style={[styles.emptySub, { color: C.muted }]}>Probá otra palabra, sacá un filtro o tocá “Limpiar”.</Text>
           </View>
         }
       />
@@ -423,85 +447,112 @@ export default function PrestadoresScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  header: { height: 56, alignSelf: 'flex-start' },
-  backButton: { padding: 8 },
-  backArrow: { fontSize: 16, fontWeight: '900' },
+function createStyles(s: number, cardW: number, isShort: boolean, safeTop: number) {
+  const pad = clamp(12 * s, 10, 14);
+  const sep = clamp(10 * s, 8, 12);
 
-  container: {
-    flex: 1,
-    padding: 12,
-    alignItems: 'center',
-  },
+  return StyleSheet.create({
+    __sep: { height: sep },
 
-  filtersBox: { width: '100%', paddingBottom: 12 },
-  screenTitle: { fontSize: 22, fontWeight: '900', marginBottom: 8 },
+    container: {
+      flex: 1,
+      paddingHorizontal: pad,
+      alignItems: 'center',
+      paddingTop: Math.max(6, safeTop ? 0 : 6),
+    },
 
-  searchRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    borderWidth: 1,
-    borderRadius: 14,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-  },
-  searchInput: { flex: 1, fontSize: 14, fontWeight: '700' },
+    header: { width: '100%', maxWidth: cardW, height: clamp(52 * s, 48, 56), justifyContent: 'center' },
+    backButton: { paddingVertical: 6, paddingHorizontal: 6, alignSelf: 'flex-start' },
+    backArrow: { fontSize: clamp(16 * s, 14, 18), fontWeight: '900' },
 
-  clearBtn: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10 },
-  clearText: { fontSize: 12, fontWeight: '900' },
+    listContent: {
+      paddingBottom: isShort ? 16 : 20,
+      alignItems: 'center',
+    },
 
-  filterLabel: { marginTop: 12, marginBottom: 6, fontSize: 13, fontWeight: '900' },
-  chipsWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+    filtersBox: { width: cardW, paddingBottom: 10 },
+    screenTitle: { fontSize: clamp(22 * s, 18, 26), fontWeight: '900', marginBottom: 8 },
 
-  chip: { borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8, borderWidth: 1 },
-  chipText: { fontSize: 12, fontWeight: '900' },
+    searchRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      borderWidth: 1,
+      borderRadius: 14,
+      paddingHorizontal: 12,
+      paddingVertical: clamp(10 * s, 8, 12),
+    },
+    searchInput: { flex: 1, fontSize: clamp(14 * s, 13, 16), fontWeight: '700' },
 
-  hint: { marginTop: 6, fontSize: 12, fontWeight: '700' },
+    clearBtn: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10 },
+    clearText: { fontSize: clamp(12 * s, 11, 13), fontWeight: '900' },
 
-  resultsRow: { marginTop: 12, paddingTop: 8, borderTopWidth: 1 },
-  resultsText: { fontSize: 12, fontWeight: '800' },
+    filterLabel: { marginTop: 12, marginBottom: 6, fontSize: clamp(13 * s, 12, 14), fontWeight: '900' },
+    chipsWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
 
-  card: {
-    flexDirection: 'row',
-    borderRadius: 18,
-    padding: 14,
-    borderWidth: 1,
-    alignItems: 'center',
-  },
+    chip: { borderRadius: 999, paddingHorizontal: 12, paddingVertical: clamp(8 * s, 7, 9), borderWidth: 1 },
+    chipText: { fontSize: clamp(12 * s, 11, 13), fontWeight: '900' },
 
-  logoBox: {
-    width: 66,
-    height: 66,
-    marginRight: 12,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
-    borderWidth: 1,
-  },
-  logoImg: { width: '88%', height: '88%', resizeMode: 'contain' },
+    hint: { marginTop: 6, fontSize: clamp(12 * s, 11, 13), fontWeight: '700' },
 
-  info: { flex: 1 },
-  rowTop: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    resultsRow: { marginTop: 12, paddingTop: 8, borderTopWidth: 1 },
+    resultsText: { fontSize: clamp(12 * s, 11, 13), fontWeight: '800' },
 
-  nombre: { flex: 1, fontSize: 16, fontWeight: '900' },
-  especialidad: { fontSize: 13, marginTop: 4, fontWeight: '800' },
-  direccion: { fontSize: 12, marginTop: 4, fontWeight: '700' },
+    card: {
+      width: cardW,
+      flexDirection: 'row',
+      borderRadius: 18,
+      padding: clamp(14 * s, 12, 16),
+      borderWidth: 1,
+      alignItems: 'center',
+    },
 
-  rowBottom: { marginTop: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  telefono: { fontSize: 12, fontWeight: '900' },
+    logoBox: {
+      width: clamp(66 * s, 54, 72),
+      height: clamp(66 * s, 54, 72),
+      marginRight: 12,
+      borderRadius: 16,
+      alignItems: 'center',
+      justifyContent: 'center',
+      overflow: 'hidden',
+      borderWidth: 1,
+    },
+    logoImg: { width: '88%', height: '88%', resizeMode: 'contain' },
 
-  distance: { fontSize: 12, fontWeight: '900' },
-  distanceMuted: { fontSize: 12 },
+    info: { flex: 1, minWidth: 0 },
+    rowTop: { flexDirection: 'row', alignItems: 'center', gap: 8 },
 
-  emptyBox: {
-    marginTop: 30,
-    alignItems: 'center',
-    padding: 18,
-    borderRadius: 16,
-    borderWidth: 1,
-  },
-  emptyTitle: { marginTop: 10, fontSize: 16, fontWeight: '900' },
-  emptySub: { marginTop: 6, fontSize: 12, textAlign: 'center', fontWeight: '700' },
-});
+    nombre: { flex: 1, fontSize: clamp(16 * s, 14, 18), fontWeight: '900' },
+    especialidad: { fontSize: clamp(13 * s, 12, 14), marginTop: 4, fontWeight: '800' },
+    direccion: { fontSize: clamp(12 * s, 11, 13), marginTop: 4, fontWeight: '700' },
+
+    rowBottom: {
+      marginTop: 8,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: 10,
+    },
+    telefono: { flex: 1, fontSize: clamp(12 * s, 11, 13), fontWeight: '900' },
+
+    distance: { fontSize: clamp(12 * s, 11, 13), fontWeight: '900' },
+    distanceMuted: { fontSize: clamp(12 * s, 11, 13) },
+
+    emptyBox: {
+      width: cardW,
+      marginTop: 30,
+      alignItems: 'center',
+      padding: clamp(18 * s, 14, 20),
+      borderRadius: 16,
+      borderWidth: 1,
+    },
+    emptyTitle: { marginTop: 10, fontSize: clamp(16 * s, 14, 18), fontWeight: '900' },
+    emptySub: {
+      marginTop: 6,
+      fontSize: clamp(12 * s, 11, 13),
+      textAlign: 'center',
+      fontWeight: '700',
+      lineHeight: clamp(18 * s, 16, 20),
+    },
+  });
+}

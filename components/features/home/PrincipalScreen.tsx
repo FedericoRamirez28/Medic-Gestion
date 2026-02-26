@@ -1,6 +1,6 @@
 // components/features/home/PrincipalScreen.tsx
 import React, { useMemo } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { createBottomTabNavigator, type BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -8,15 +8,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/app/(tabs)/context';
 import { useAppTheme } from '@/components/theme/AppThemeProvider';
 
-// ✅ TU HAPTIC TAB (ajustá el path si hace falta)
 import { HapticTab } from '@/constants/HapticTab';
 
-// Screens reales
 import CredencialScreen from '@/components/features/home/CredencialScreen';
 import PrestadorScreen from '@/components/features/home/PrestadoresScreen';
 import FarmaciaScreen from './FarmaciaScreen';
 
-// Menú lateral
 import { MenuProvider, useMenu } from '@/components/menu/MenuProvider';
 import { RightMenu } from '@/components/menu/RightMenu';
 
@@ -27,22 +24,18 @@ type RootTabParamList = {
   Credencial: undefined;
 };
 
+function clamp(n: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, n));
+}
+
 function HeaderBurger() {
   const { open } = useMenu();
   return (
-    <Pressable onPress={open} accessibilityRole="button" accessibilityLabel="Abrir menú">
-      <View
-        style={{
-          width: 30,
-          height: 22,
-          justifyContent: 'space-between',
-          paddingVertical: 2,
-          marginRight: 8,
-        }}
-      >
-        <View style={{ height: 3, borderRadius: 2, backgroundColor: '#fff' }} />
-        <View style={{ height: 3, borderRadius: 2, backgroundColor: '#fff' }} />
-        <View style={{ height: 3, borderRadius: 2, backgroundColor: '#fff' }} />
+    <Pressable onPress={open} accessibilityRole="button" accessibilityLabel="Abrir menú" hitSlop={10}>
+      <View style={styles.burgerWrap}>
+        <View style={styles.burgerLine} />
+        <View style={styles.burgerLine} />
+        <View style={styles.burgerLine} />
       </View>
     </Pressable>
   );
@@ -69,17 +62,31 @@ type InicioProps = BottomTabScreenProps<RootTabParamList, 'Inicio'>;
 const InicioScreen: React.FC<InicioProps> = ({ navigation }) => {
   const { user } = useAuth();
   const { theme } = useAppTheme();
-  const userName = useMemo(() => user?.nombre ?? 'invitado', [user]);
+  const { width } = useWindowDimensions();
+
+  const s = useMemo(() => clamp(width / 390, 0.85, 1.2), [width]);
+
+  // ✅ si hay user, mostramos su nombre; si no, invitado
+  const userName = useMemo(() => {
+    const n = (user as any)?.nombre;
+    return String(n ?? '').trim() || 'invitado';
+  }, [user]);
+
+  const titleMain = clamp(28 * s, 20, 30);
+  const titleSection = clamp(22 * s, 16, 24);
 
   return (
     <ScrollView
       style={[styles.container, { backgroundColor: theme.colors.surface }]}
-      contentContainerStyle={{ padding: 16 }}
+      contentContainerStyle={{ padding: clamp(16 * s, 12, 18), paddingBottom: 24 }}
+      showsVerticalScrollIndicator={false}
     >
-      <Text style={[styles.Title, { color: theme.colors.text }]}>Bienvenido, {userName}</Text>
+      <Text style={[styles.Title, { color: theme.colors.text, fontSize: titleMain }]}>
+        Bienvenido, {userName}
+      </Text>
       <View style={[styles.lineaInferior2, { backgroundColor: theme.isDark ? '#23324A' : '#BFD6EF' }]} />
 
-      <Text style={[styles.Title, { marginTop: 18, fontSize: 22, color: theme.colors.text }]}>
+      <Text style={[styles.Title, { marginTop: 18, fontSize: titleSection, color: theme.colors.text }]}>
         Accesos rápidos
       </Text>
       <View style={[styles.lineaInferior2, { backgroundColor: theme.isDark ? '#23324A' : '#BFD6EF' }]} />
@@ -94,9 +101,7 @@ const InicioScreen: React.FC<InicioProps> = ({ navigation }) => {
           <Ionicons name="medkit-outline" size={22} color={theme.colors.text} />
           <View style={{ flex: 1 }}>
             <Text style={[styles.quickTitle, { color: theme.colors.text }]}>Farmacias</Text>
-            <Text style={[styles.quickSub, { color: theme.colors.muted }]}>
-              Buscá farmacias y datos de contacto.
-            </Text>
+            <Text style={[styles.quickSub, { color: theme.colors.muted }]}>Buscá farmacias y datos de contacto.</Text>
           </View>
           <Ionicons name="chevron-forward" size={18} color={theme.colors.muted} />
         </Pressable>
@@ -110,9 +115,7 @@ const InicioScreen: React.FC<InicioProps> = ({ navigation }) => {
           <Ionicons name="people-outline" size={22} color={theme.colors.text} />
           <View style={{ flex: 1 }}>
             <Text style={[styles.quickTitle, { color: theme.colors.text }]}>Prestadores</Text>
-            <Text style={[styles.quickSub, { color: theme.colors.muted }]}>
-              Encontrá médicos y centros disponibles.
-            </Text>
+            <Text style={[styles.quickSub, { color: theme.colors.muted }]}>Encontrá médicos y centros disponibles.</Text>
           </View>
           <Ionicons name="chevron-forward" size={18} color={theme.colors.muted} />
         </Pressable>
@@ -126,15 +129,13 @@ const InicioScreen: React.FC<InicioProps> = ({ navigation }) => {
           <Ionicons name="card-outline" size={22} color={theme.colors.text} />
           <View style={{ flex: 1 }}>
             <Text style={[styles.quickTitle, { color: theme.colors.text }]}>Mi credencial</Text>
-            <Text style={[styles.quickSub, { color: theme.colors.muted }]}>
-              Mostrá tu credencial rápidamente.
-            </Text>
+            <Text style={[styles.quickSub, { color: theme.colors.muted }]}>Mostrá tu credencial rápidamente.</Text>
           </View>
           <Ionicons name="chevron-forward" size={18} color={theme.colors.muted} />
         </Pressable>
       </View>
 
-      <Text style={[styles.Title, { marginTop: 18, fontSize: 22, color: theme.colors.text }]}>
+      <Text style={[styles.Title, { marginTop: 18, fontSize: titleSection, color: theme.colors.text }]}>
         Novedades
       </Text>
       <View style={[styles.lineaInferior2, { backgroundColor: theme.isDark ? '#23324A' : '#BFD6EF' }]} />
@@ -162,12 +163,12 @@ const InicioScreen: React.FC<InicioProps> = ({ navigation }) => {
         </View>
       </View>
 
-      <Text style={[styles.Title, { marginTop: 18, fontSize: 22, color: theme.colors.text }]}>
+      <Text style={[styles.Title, { marginTop: 18, fontSize: titleSection, color: theme.colors.text }]}>
         Medic te ayuda
       </Text>
       <View style={[styles.lineaInferior2, { backgroundColor: theme.isDark ? '#23324A' : '#BFD6EF' }]} />
 
-      <View style={[styles.cajaTexto, { backgroundColor: theme.colors.card }]}>
+      <View style={[styles.cajaTexto, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
         <Text style={[styles.texto, { color: theme.colors.muted }]}>
           Accedé rápido a prestadores, farmacias y tu credencial desde el menú y las pestañas.
         </Text>
@@ -179,10 +180,12 @@ const InicioScreen: React.FC<InicioProps> = ({ navigation }) => {
 export default function PrincipalScreen() {
   const { theme } = useAppTheme();
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
 
-  // ✅ clave para NO superponer con la barra de navegación de Android:
-  const extraBottom = Math.max(insets.bottom, 10); // 10px mínimo por seguridad
-  const baseHeight = 56; // altura base cómoda (sin adivinar demasiado)
+  const s = useMemo(() => clamp(width / 390, 0.85, 1.2), [width]);
+
+  const extraBottom = Math.max(insets.bottom, 10);
+  const baseHeight = clamp(56 * s, 54, 70);
 
   return (
     <MenuProvider>
@@ -190,14 +193,18 @@ export default function PrincipalScreen() {
         <Tab.Navigator
           initialRouteName="Inicio"
           backBehavior="history"
-          // ✅ refuerza safe area en tabs (por si algún device raro no lo respeta)
           safeAreaInsets={{ bottom: extraBottom }}
           screenOptions={({ route }) => ({
             headerShown: true,
             headerStyle: { backgroundColor: theme.colors.headerBg },
             headerTitleAlign: 'left',
             headerTitle: () => (
-              <Text style={[styles.headerTitle, { color: theme.colors.headerText }]}>
+              <Text
+                style={[
+                  styles.headerTitle,
+                  { color: theme.colors.headerText, fontSize: clamp(20 * s, 16, 22) },
+                ]}
+              >
                 {TITLES[route.name as keyof RootTabParamList]}
               </Text>
             ),
@@ -207,10 +214,8 @@ export default function PrincipalScreen() {
               </View>
             ),
 
-            // ✅ TU HAPTIC TAB
             tabBarButton: (props) => <HapticTab {...props} />,
 
-            // ✅ indicador arriba del tab activo
             tabBarIcon: ({ size, color, focused }) => {
               const iconName = ICONS[route.name as keyof RootTabParamList] ?? 'home';
               return (
@@ -227,21 +232,19 @@ export default function PrincipalScreen() {
             },
 
             tabBarLabel: TITLES[route.name as keyof RootTabParamList],
-
             lazy: false,
             freezeOnBlur: true,
             tabBarHideOnKeyboard: true,
-
             tabBarActiveTintColor: theme.colors.tabActive,
             tabBarInactiveTintColor: theme.colors.tabInactive,
 
-            // ✅ acá está la diferencia: altura/padding según insets
             tabBarStyle: {
               backgroundColor: theme.colors.tabBg,
               borderTopColor: theme.colors.tabBorder,
               height: baseHeight + extraBottom,
               paddingBottom: extraBottom,
               paddingTop: 8,
+              minHeight: 56 + extraBottom,
             },
           })}
         >
@@ -258,19 +261,19 @@ export default function PrincipalScreen() {
 }
 
 const styles = StyleSheet.create({
-  headerTitle: { fontSize: 20, fontWeight: '600', marginLeft: 2 },
+  headerTitle: { fontWeight: '700', marginLeft: 2 },
 
   container: { flex: 1 },
-  Title: { fontSize: 28, fontWeight: '600' },
+  Title: { fontWeight: '700' },
   lineaInferior2: { height: 2, width: '100%', borderRadius: 2 },
 
   cajaTexto: {
-    padding: 8,
-    borderRadius: 8,
-    elevation: 10,
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
     marginTop: 12,
   },
-  texto: { margin: 8, fontSize: 16, textAlign: 'center' },
+  texto: { fontSize: 16, textAlign: 'center', lineHeight: 22 },
 
   novedadCard: {
     flexDirection: 'row',
@@ -290,14 +293,10 @@ const styles = StyleSheet.create({
     padding: 14,
     borderWidth: 1,
   },
-  quickTitle: { fontSize: 16, fontWeight: '700' },
+  quickTitle: { fontSize: 16, fontWeight: '800' },
   quickSub: { marginTop: 2, fontSize: 13 },
 
-  iconWrap: {
-    width: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  iconWrap: { width: 44, alignItems: 'center', justifyContent: 'center' },
   activeTopLine: {
     position: 'absolute',
     top: -8,
@@ -305,4 +304,13 @@ const styles = StyleSheet.create({
     width: 34,
     borderRadius: 3,
   },
+
+  burgerWrap: {
+    width: 30,
+    height: 22,
+    justifyContent: 'space-between',
+    paddingVertical: 2,
+    marginRight: 8,
+  },
+  burgerLine: { height: 3, borderRadius: 2, backgroundColor: '#fff' },
 });

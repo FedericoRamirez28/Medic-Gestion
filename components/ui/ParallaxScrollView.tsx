@@ -1,5 +1,5 @@
-import type { PropsWithChildren, ReactElement } from 'react';
-import { StyleSheet } from 'react-native';
+import React, { useMemo, type PropsWithChildren, type ReactElement } from 'react';
+import { StyleSheet, useWindowDimensions } from 'react-native';
 import Animated, {
   interpolate,
   useAnimatedRef,
@@ -11,22 +11,34 @@ import { useBottomTabOverflow } from '@/components/ui/TabBarBackground';
 import { ThemedView } from '@/components/ui/ThemedView';
 import { useColorScheme } from '@/hooks/useColorScheme';
 
-const HEADER_HEIGHT = 250;
+function clamp(n: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, n));
+}
 
 type Props = PropsWithChildren<{
   headerImage: ReactElement;
   headerBackgroundColor: { dark: string; light: string };
 }>;
 
-export default function ParallaxScrollView({
-  children,
-  headerImage,
-  headerBackgroundColor,
-}: Props) {
+export default function ParallaxScrollView({ children, headerImage, headerBackgroundColor }: Props) {
   const colorScheme = useColorScheme() ?? 'light';
+
+  const { width, height } = useWindowDimensions();
+  const s = useMemo(() => clamp(width / 390, 0.85, 1.2), [width]);
+
+  // ✅ Header altura: más bajo en pantallas chicas, más alto en tablets
+  const HEADER_HEIGHT = useMemo(() => {
+    const base = 250;
+    const byHeight = height < 740 ? 210 : base;
+    const byTablet = width >= 768 ? 300 : byHeight;
+    return Math.round(byTablet * clamp(s, 0.9, 1.15));
+  }, [width, height, s]);
+
+  const bottom = useBottomTabOverflow();
+
   const scrollRef = useAnimatedRef<Animated.ScrollView>();
   const scrollOffset = useScrollViewOffset(scrollRef);
-  const bottom = useBottomTabOverflow();
+
   const headerAnimatedStyle = useAnimatedStyle(() => {
     return {
       transform: [
@@ -42,7 +54,9 @@ export default function ParallaxScrollView({
         },
       ],
     };
-  });
+  }, [HEADER_HEIGHT]);
+
+  const styles = useMemo(() => createStyles(s, HEADER_HEIGHT), [s, HEADER_HEIGHT]);
 
   return (
     <ThemedView style={styles.container}>
@@ -50,33 +64,41 @@ export default function ParallaxScrollView({
         ref={scrollRef}
         scrollEventThrottle={16}
         scrollIndicatorInsets={{ bottom }}
-        contentContainerStyle={{ paddingBottom: bottom }}>
+        contentContainerStyle={{ paddingBottom: bottom }}
+      >
         <Animated.View
           style={[
             styles.header,
             { backgroundColor: headerBackgroundColor[colorScheme] },
             headerAnimatedStyle,
-          ]}>
+          ]}
+        >
           {headerImage}
         </Animated.View>
+
         <ThemedView style={styles.content}>{children}</ThemedView>
       </Animated.ScrollView>
     </ThemedView>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  header: {
-    height: HEADER_HEIGHT,
-    overflow: 'hidden',
-  },
-  content: {
-    flex: 1,
-    padding: 32,
-    gap: 16,
-    overflow: 'hidden',
-  },
-});
+function createStyles(s: number, headerH: number) {
+  const pad = clamp(32 * s, 18, 34);
+  const gap = clamp(16 * s, 12, 20);
+
+  return StyleSheet.create({
+    container: { flex: 1 },
+
+    header: {
+      height: headerH,
+      overflow: 'hidden',
+    },
+
+    content: {
+      flex: 1,
+      padding: pad,
+      gap,
+      overflow: 'hidden',
+    },
+  });
+}

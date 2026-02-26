@@ -10,6 +10,7 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import * as Network from 'expo-network';
@@ -30,6 +31,15 @@ type CachedPayload = {
 
 const API_BASE = (process.env.EXPO_PUBLIC_API_BASE_URL ?? '').replace(/\/+$/, '');
 
+/** ===================== DEMO ===================== */
+const DEMO_DNI = '22222222';
+const DEMO_CRED: CredencialData = {
+  numeroSocio: '00999999',
+  nombre: 'Usuario Demo',
+  dni: DEMO_DNI,
+  plan: 'Rubí',
+};
+
 function safeParseJson<T = any>(text: string): T | null {
   try {
     return text ? (JSON.parse(text) as T) : null;
@@ -40,16 +50,6 @@ function safeParseJson<T = any>(text: string): T | null {
 
 function cacheKey(dni: string) {
   return `medic_credencial_cache_v1_${dni}`;
-}
-
-function formatDateTime(ts: number) {
-  const d = new Date(ts);
-  const dd = String(d.getDate()).padStart(2, '0');
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
-  const yyyy = d.getFullYear();
-  const hh = String(d.getHours()).padStart(2, '0');
-  const min = String(d.getMinutes()).padStart(2, '0');
-  return `${dd}/${mm}/${yyyy} ${hh}:${min}`;
 }
 
 async function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
@@ -68,12 +68,27 @@ async function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
   });
 }
 
+function clamp(n: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, n));
+}
+
 export default function CredencialScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const { theme } = useAppTheme();
+  const { width, height } = useWindowDimensions();
 
-  const afiliadoDni = useMemo(() => String((user as any)?.dni ?? '').trim(), [(user as any)?.dni]);
+  // ✅ escala para responsive (móviles chicos ↔ tablets)
+  const s = useMemo(() => clamp(width / 390, 0.85, 1.2), [width]);
+  const isShort = height < 720;
+
+  // ✅ DNI desde sesión
+  const afiliadoDni = useMemo(() => {
+    const raw = (user as any)?.dni;
+    return String(raw ?? '').trim();
+  }, [user]);
+
+  const isDemo = afiliadoDni === DEMO_DNI || String((user as any)?.uid ?? '') === 'demo';
 
   const [credencial, setCredencial] = useState<CredencialData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -82,7 +97,7 @@ export default function CredencialScreen() {
   const [cachedAt, setCachedAt] = useState<number | null>(null);
   const [hasCache, setHasCache] = useState(false);
 
-  // ✅ Colores desde tu theme (sin usar `primary`)
+  // ✅ Colores desde tu theme
   const isDark = !!theme?.isDark;
   const colors = theme?.colors;
 
@@ -92,7 +107,6 @@ export default function CredencialScreen() {
     muted: colors?.muted ?? (isDark ? '#9CA3AF' : '#444444'),
     border: colors?.border ?? (isDark ? '#22324A' : '#DADADA'),
 
-    // ✅ en tu tema, el “accent” útil para links suele ser tabActive
     link: colors?.tabActive ?? '#005BBF',
 
     medicGreen: '#2FAE3B',
@@ -103,6 +117,8 @@ export default function CredencialScreen() {
     warn: isDark ? '#FBBF24' : '#9A3412',
   };
 
+  const styles = useMemo(() => createStyles(s, isShort), [s, isShort]);
+
   useEffect(() => {
     let cancelled = false;
 
@@ -112,9 +128,27 @@ export default function CredencialScreen() {
       setCachedAt(null);
       setHasCache(false);
 
+      /** ===================== DEMO: credencial hardcode ===================== */
+      if (isDemo) {
+        const now = Date.now();
+        if (!cancelled) {
+          setCredencial(DEMO_CRED);
+          setHasCache(true);
+          setCachedAt(now);
+          setOffline(false);
+          setLoading(false);
+        }
+        // opcional: cachear para que quede “como real”
+        try {
+          const payload: CachedPayload = { data: DEMO_CRED, cachedAt: now };
+          await AsyncStorage.setItem(cacheKey(DEMO_DNI), JSON.stringify(payload));
+        } catch {}
+        return;
+      }
+
       let cacheFound = false;
 
-      // 1) cargar cache primero (modo rápido)
+      // 1) cache primero
       if (afiliadoDni) {
         try {
           const raw = await AsyncStorage.getItem(cacheKey(afiliadoDni));
@@ -125,20 +159,20 @@ export default function CredencialScreen() {
             setCredencial(parsed.data);
             setHasCache(true);
             setCachedAt(parsed.cachedAt ?? null);
-            setLoading(false); // ✅ si hay cache, no spinner largo
+            setLoading(false);
           }
         } catch {
           // ignore
         }
       }
 
-      // si falta DNI o API, no podemos fetch online
+      // si falta DNI o API, no fetch
       if (!afiliadoDni || !API_BASE) {
         if (!cancelled && !cacheFound) setLoading(false);
         return;
       }
 
-      // 2) si no hay conexión, usar cache y marcar offline
+      // 2) conexión
       try {
         const net = await Network.getNetworkStateAsync();
         const connected = !!net?.isConnected;
@@ -151,10 +185,10 @@ export default function CredencialScreen() {
           return;
         }
       } catch {
-        // si falla el check, igual intentamos fetch
+        // si falla, intentamos igual fetch
       }
 
-      // 3) fetch online (con timeout)
+      // 3) fetch
       try {
         const res = await withTimeout(
           fetch(`${API_BASE}/api/servicios/getinfobydni`, {
@@ -170,7 +204,6 @@ export default function CredencialScreen() {
 
         if (cancelled) return;
 
-        // si no ok / inválido / deshabilitado -> dejamos cache si existía
         if (!res.ok || !data || data?.habilitado === false) {
           if (!cacheFound) setCredencial(null);
           setLoading(false);
@@ -191,7 +224,6 @@ export default function CredencialScreen() {
         const now = Date.now();
         setCachedAt(now);
 
-        // guardar cache
         try {
           const payload: CachedPayload = { data: next, cachedAt: now };
           await AsyncStorage.setItem(cacheKey(afiliadoDni), JSON.stringify(payload));
@@ -201,7 +233,6 @@ export default function CredencialScreen() {
 
         setLoading(false);
       } catch {
-        // timeout/fallo: si hay cache, seguimos con cache y mostramos offline
         if (!cancelled) {
           setOffline(true);
           if (!cacheFound) {
@@ -215,7 +246,7 @@ export default function CredencialScreen() {
     return () => {
       cancelled = true;
     };
-  }, [afiliadoDni, API_BASE]);
+  }, [afiliadoDni, isDemo]);
 
   const missingDni = !afiliadoDni;
 
@@ -230,7 +261,7 @@ export default function CredencialScreen() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: C.bg }]}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backButton} activeOpacity={0.85}>
           <Text style={[styles.backArrow, { color: C.link }]}>‹ Volver</Text>
         </TouchableOpacity>
       </View>
@@ -238,10 +269,11 @@ export default function CredencialScreen() {
       <View style={styles.brandBlock}>
         <Image source={logo} style={styles.brandLogo} resizeMode="contain" />
         <View style={[styles.divider, { backgroundColor: C.border }]} />
+
         <Text style={[styles.planHeading, { color: C.medicGreen }]}>TU PLAN</Text>
 
         <View style={[styles.planBar, { backgroundColor: C.planBg, borderColor: C.border }]}>
-          <Text style={[styles.planBarValue, { color: C.planText }]}>
+          <Text style={[styles.planBarValue, { color: C.planText }]} numberOfLines={2}>
             {credencial?.plan || '—'}
           </Text>
         </View>
@@ -249,17 +281,19 @@ export default function CredencialScreen() {
         {(offline || cachedAt) && (
           <View style={styles.offlineBox}>
             {offline ? (
-              <Text style={[styles.offlineText, { color: C.warn }]}>
-                Sin conexión. Mostrando credencial guardada.
+              <Text style={[styles.offlineText, { color: C.warn }]}>Sin conexión. Mostrando credencial guardada.</Text>
+            ) : null}
+
+            {cachedAt ? (
+              <Text style={[styles.offlineMuted, { color: C.muted }]}>
+                {/* Podés mostrar fecha si querés */}
               </Text>
             ) : null}
           </View>
         )}
 
-        {!API_BASE && (
-          <Text style={[styles.warnText, { color: C.muted }]}>
-            Falta configurar EXPO_PUBLIC_API_BASE_URL en el .env
-          </Text>
+        {!API_BASE && !isDemo && (
+          <Text style={[styles.warnText, { color: C.muted }]}>Falta configurar EXPO_PUBLIC_API_BASE_URL en el .env</Text>
         )}
       </View>
 
@@ -270,21 +304,17 @@ export default function CredencialScreen() {
           </Text>
         ) : credencial ? (
           <>
-            <FlipCard
-              numeroSocio={credencial.numeroSocio}
-              nombre={credencial.nombre}
-              dni={credencial.dni}
-            />
+            <View style={styles.cardWrap}>
+              <FlipCard numeroSocio={credencial.numeroSocio} nombre={credencial.nombre} dni={credencial.dni} />
+            </View>
+
             <Text style={[styles.legend, { color: C.muted }]}>
-              El uso de esta credencial es exclusivo de su titular y debe presentarse con el documento
-              de identidad.
+              El uso de esta credencial es exclusivo de su titular y debe presentarse con el documento de identidad.
             </Text>
           </>
         ) : (
           <Text style={[styles.errorText, { color: C.danger }]}>
-            {hasCache
-              ? 'No se encontraron datos de la credencial.'
-              : 'No se encontraron datos. Conectate a internet para cargarla por primera vez.'}
+            {hasCache ? 'No se encontraron datos de la credencial.' : 'No se encontraron datos. Conectate a internet para cargarla por primera vez.'}
           </Text>
         )}
       </View>
@@ -292,47 +322,83 @@ export default function CredencialScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1 },
-  centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+function createStyles(s: number, isShort: boolean) {
+  const padH = clamp(16, 14, 18);
 
-  header: { paddingHorizontal: 12, paddingTop: 15, paddingBottom: 4 },
-  backButton: { alignSelf: 'flex-start', paddingVertical: 6, paddingHorizontal: 8 },
-  backArrow: { fontSize: 16, fontWeight: '800' },
+  const backSize = clamp(16 * s, 14, 18);
 
-  brandBlock: { alignItems: 'center', paddingHorizontal: 16, paddingBottom: 8 },
-  brandLogo: { width: 180, height: 140, marginTop: 4 },
-  divider: { height: 1, alignSelf: 'stretch', marginVertical: 6 },
+  const logoW = clamp(180 * s, 140, 220);
+  const logoH = clamp(140 * s, 96, 150);
 
-  planHeading: { fontSize: 18, fontWeight: '900', letterSpacing: 1 },
+  const planHeading = clamp(18 * s, 14, 20);
+  const planValue = clamp(16 * s, 13, 18);
 
-  planBar: {
-    marginTop: 8,
-    borderRadius: 10,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    alignSelf: 'stretch',
-    marginHorizontal: 16,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-  },
-  planBarValue: { fontSize: 16, fontWeight: '900' },
+  const legendSize = clamp(12 * s, 11, 13);
+  const errSize = clamp(14 * s, 12, 16);
 
-  offlineBox: { marginTop: 10, alignSelf: 'stretch', paddingHorizontal: 16, gap: 4 },
-  offlineText: { fontSize: 12, fontWeight: '900', textAlign: 'center' },
-  offlineMuted: { fontSize: 12, textAlign: 'center', fontWeight: '700' },
+  return StyleSheet.create({
+    container: { flex: 1 },
+    centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
 
-  warnText: { marginTop: 10, fontSize: 12, textAlign: 'center', fontWeight: '700' },
+    header: { paddingHorizontal: padH, paddingTop: clamp(10 * s, 8, 14), paddingBottom: 4 },
+    backButton: { alignSelf: 'flex-start', paddingVertical: 6, paddingHorizontal: 8 },
+    backArrow: { fontSize: backSize, fontWeight: '900' },
 
-  content: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingBottom: 100,
-    paddingHorizontal: 16,
-  },
-  legend: { marginTop: 48, fontSize: 12, textAlign: 'center', lineHeight: 18, fontWeight: '700' },
-  errorText: { marginBottom: 16, textAlign: 'center', fontWeight: '800' },
-});
+    brandBlock: { alignItems: 'center', paddingHorizontal: padH, paddingBottom: 8 },
+    brandLogo: { width: logoW, height: logoH, marginTop: 2 },
+    divider: { height: 1, alignSelf: 'stretch', marginVertical: clamp(6 * s, 6, 10) },
+
+    planHeading: { fontSize: planHeading, fontWeight: '900', letterSpacing: 1 },
+
+    planBar: {
+      marginTop: 8,
+      borderRadius: 12,
+      paddingVertical: clamp(10 * s, 8, 12),
+      paddingHorizontal: clamp(14 * s, 12, 16),
+      alignSelf: 'stretch',
+      flexDirection: 'row',
+      justifyContent: 'center',
+      alignItems: 'center',
+      borderWidth: 1,
+    },
+    planBarValue: { fontSize: planValue, fontWeight: '900', textAlign: 'center' },
+
+    offlineBox: { marginTop: 10, alignSelf: 'stretch', paddingHorizontal: 2, gap: 4 },
+    offlineText: { fontSize: clamp(12 * s, 10, 13), fontWeight: '900', textAlign: 'center' },
+    offlineMuted: { fontSize: clamp(12 * s, 10, 13), textAlign: 'center', fontWeight: '700' },
+
+    warnText: { marginTop: 10, fontSize: clamp(12 * s, 10, 13), textAlign: 'center', fontWeight: '700' },
+
+    content: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+      paddingBottom: isShort ? 70 : 100,
+      paddingHorizontal: padH,
+    },
+
+    cardWrap: {
+      width: '100%',
+      maxWidth: 520, // tablet friendly
+      alignItems: 'center',
+    },
+
+    legend: {
+      marginTop: clamp(28 * s, 20, 36),
+      fontSize: legendSize,
+      textAlign: 'center',
+      lineHeight: clamp(18 * s, 16, 20),
+      fontWeight: '700',
+      maxWidth: 520,
+    },
+
+    errorText: {
+      marginBottom: 16,
+      textAlign: 'center',
+      fontWeight: '900',
+      fontSize: errSize,
+      maxWidth: 520,
+      lineHeight: clamp(20 * s, 18, 24),
+    },
+  });
+}

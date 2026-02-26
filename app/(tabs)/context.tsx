@@ -1,12 +1,24 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import React, { createContext, ReactNode, useContext, useEffect, useState } from 'react';
+import React, { createContext, type ReactNode, useContext, useEffect, useState } from 'react';
 
 // Base URL desde .env
 const API_BASE = (process.env.EXPO_PUBLIC_API_BASE_URL || 'https://api.medic.com.ar').replace(/\/+$/, '');
 
 // Endpoints oficiales
-const EP_GET_BY_DNI    = '/api/servicios/getinfobydni';
-const EP_GET_BY_SOCIO  = '/api/servicios/getinfobysocio';
+const EP_GET_BY_DNI = '/api/servicios/getinfobydni';
+const EP_GET_BY_SOCIO = '/api/servicios/getinfobysocio';
+
+/** ===================== DEMO USER ===================== */
+const DEMO_DNI = '22222222';
+const DEMO_USER = {
+  uid: 'demo',
+  dni: DEMO_DNI,
+  nombre: 'Usuario Demo',
+  apellido: undefined,
+  plan: 'Rubí',
+  numero_contrato: '00999999', // ficticio
+  habilitado: true,
+};
 
 export type User = {
   nombre: string;
@@ -18,9 +30,7 @@ export type User = {
   habilitado?: boolean;
 };
 
-type LoginArgs =
-  | string
-  | { dni?: string; numeroSocio?: string };
+type LoginArgs = string | { dni?: string; numeroSocio?: string };
 
 type AuthContextType = {
   user: User | null;
@@ -48,17 +58,26 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         const json = await AsyncStorage.getItem('@medic_user');
         if (json) {
           const parsed = JSON.parse(json);
+
+          // ✅ Normalizamos uid siempre
           const uid: string = String(parsed?.uid ?? parsed?.dni ?? 'guest');
-          setUser({ ...parsed, uid });
+
+          // ✅ Si venía guardado el demo, lo restauramos correcto
+          if (String(parsed?.dni ?? '') === DEMO_DNI || uid === 'demo') {
+            setUser({ ...(DEMO_USER as User) });
+          } else {
+            setUser({ ...parsed, uid });
+          }
         }
-      } catch {} finally {
+      } catch {
+        // ignore
+      } finally {
         setLoading(false);
       }
     })();
   }, []);
 
-  const isEnabled = (v: any) =>
-    v === true || v === 'true' || v === 1 || v === '1';
+  const isEnabled = (v: any) => v === true || v === 'true' || v === 1 || v === '1';
 
   const mapBackendToUser = (data: any, fallbackId: string): User => {
     const dni = (data?.dni ?? '').toString();
@@ -83,7 +102,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       body: JSON.stringify(body),
     });
     let data: any = null;
-    try { data = await res.json(); } catch {}
+    try {
+      data = await res.json();
+    } catch {
+      // ignore
+    }
     return { ok: res.ok, status: res.status, data };
   };
 
@@ -94,7 +117,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       let numeroSocio = '';
 
       if (typeof args === 'string') {
-        // compat: si pasan string lo interpretamos como DNI
         dni = args.replace(/\D/g, '');
       } else {
         dni = (args.dni || '').replace(/\D/g, '');
@@ -103,6 +125,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       if (!dni && !numeroSocio) {
         return { ok: false, message: 'Ingresá tu DNI o N° de afiliado.' };
+      }
+
+      /** ===================== DEMO LOGIN (DNI 22222222) ===================== */
+      if (dni === DEMO_DNI) {
+        const u: User = { ...(DEMO_USER as User) };
+        await AsyncStorage.setItem('@medic_user', JSON.stringify(u));
+        setUser(u);
+        return { ok: true };
       }
 
       // 1) Si viene numeroSocio, validamos por socio

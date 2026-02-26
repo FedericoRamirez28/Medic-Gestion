@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useMemo } from 'react';
-import { Image, Linking, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Image, Linking, ScrollView, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 import { useAppTheme } from '@/components/theme/AppThemeProvider';
 
 type DayKey = 'Mon' | 'Tue' | 'Wed' | 'Thu' | 'Fri' | 'Sat' | 'Sun';
@@ -28,6 +28,9 @@ const WEEK_SCHEDULE: Record<DayKey, DaySchedule> = {
   Sun: null, // Cerrado
 };
 
+function clamp(n: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, n));
+}
 function pad2(n: number) {
   return n < 10 ? `0${n}` : `${n}`;
 }
@@ -60,6 +63,12 @@ export default function FarmaciaScreen() {
   const isDark = !!theme?.isDark;
   const colors = theme?.colors;
 
+  const { width, height } = useWindowDimensions();
+  const s = useMemo(() => clamp(width / 390, 0.85, 1.2), [width]);
+  const isShort = height < 740;
+
+  const styles = useMemo(() => createStyles(s, isShort), [s, isShort]);
+
   // ✅ OJO: no usamos `primary` (no existe). Usamos tabActive como “link/acento”.
   const C = {
     bg: colors?.bg ?? (isDark ? '#0B1220' : '#F9FAFB'),
@@ -82,7 +91,6 @@ export default function FarmaciaScreen() {
     track: isDark ? '#24324A' : '#E5E7EB',
     fill: '#22C55E',
 
-    // “Hoy” highlight
     todayRowBg: isDark ? 'rgba(56,189,248,0.10)' : 'rgba(14,116,144,0.08)',
     todayDay: '#0E7490',
   };
@@ -167,38 +175,40 @@ export default function FarmaciaScreen() {
         </TouchableOpacity>
       </View>
 
-      <ScrollView contentContainerStyle={{ paddingBottom: 24 }}>
+      <ScrollView contentContainerStyle={{ paddingBottom: styles.__pbScroll.paddingBottom }}>
         <View style={styles.container}>
           <Text style={[styles.title, { color: C.text }]}>Farmacia {nombreFarmacia}</Text>
 
-          {/* Horario de apertura (destacado) */}
+          {/* Horario Card */}
           <View style={[styles.horarioCard, { backgroundColor: C.surface, borderColor: C.border }]}>
             <View style={[styles.horarioHeader, { backgroundColor: C.headerBg }]}>
               <View style={styles.horarioHeaderLeft}>
-                <Ionicons name="time-outline" size={18} color={C.headerText} />
+                <Ionicons name="time-outline" size={Math.round(18 * s)} color={C.headerText} />
                 <Text style={[styles.horarioHeaderText, { color: C.headerText }]}>HORARIO DE APERTURA</Text>
               </View>
             </View>
 
             <View style={styles.horarioStatusRow}>
               <View style={[styles.statusPill, { backgroundColor: horarioInfo.openNow ? C.statusOpen : C.statusClosed }]}>
-                <Ionicons
-                  name={horarioInfo.openNow ? 'checkmark-circle' : 'close-circle'}
-                  size={16}
-                  color="#fff"
-                />
+                <Ionicons name={horarioInfo.openNow ? 'checkmark-circle' : 'close-circle'} size={Math.round(16 * s)} color="#fff" />
                 <Text style={styles.statusPillText}>{horarioInfo.statusText}</Text>
               </View>
 
               <Text style={[styles.statusSub, { color: C.text }]}>{horarioInfo.subText}</Text>
             </View>
 
-            {/* Barra progreso */}
             <View style={[styles.progressTrack, { backgroundColor: C.track }]}>
-              <View style={[styles.progressFill, { backgroundColor: C.fill, width: `${Math.max(0, Math.min(1, horarioInfo.progress)) * 100}%` }]} />
+              <View
+                style={[
+                  styles.progressFill,
+                  {
+                    backgroundColor: C.fill,
+                    width: `${Math.max(0, Math.min(1, horarioInfo.progress)) * 100}%`,
+                  },
+                ]}
+              />
             </View>
 
-            {/* Horario semanal */}
             <View style={styles.weekTable}>
               {weekRows.map((r) => {
                 const isToday = r.key === todayKey;
@@ -210,15 +220,12 @@ export default function FarmaciaScreen() {
                       isToday ? [styles.weekRowToday, { backgroundColor: C.todayRowBg }] : null,
                     ]}
                   >
-                    <Text style={[styles.weekDay, { color: isToday ? C.todayDay : C.text }]}>
-                      {r.label}
-                    </Text>
-                    <Text style={[styles.weekTime, { color: r.value === 'Cerrado' ? C.muted : C.text }]}>
-                      {r.value}
-                    </Text>
+                    <Text style={[styles.weekDay, { color: isToday ? C.todayDay : C.text }]}>{r.label}</Text>
+                    <Text style={[styles.weekTime, { color: r.value === 'Cerrado' ? C.muted : C.text }]}>{r.value}</Text>
                   </View>
                 );
               })}
+
               <Text style={[styles.todayHint, { color: C.muted }]}>
                 Hoy: {todayLabel} ({formatHM(new Date())})
               </Text>
@@ -226,7 +233,7 @@ export default function FarmaciaScreen() {
           </View>
 
           {/* Logo */}
-          <Image source={require('@/assets/images/logo-medic-simple.png')} style={styles.logo} />
+          <Image source={require('@/assets/images/logo-medic-simple.png')} style={styles.logo} resizeMode="contain" />
 
           {/* Info */}
           <Text style={[styles.nombre, { color: C.text }]}>Dirección</Text>
@@ -236,17 +243,16 @@ export default function FarmaciaScreen() {
           {/* Botones */}
           <View style={styles.botones}>
             <TouchableOpacity style={[styles.boton, { backgroundColor: C.greenBtn }]} onPress={abrirTelefono}>
-              <Ionicons name="call" size={20} color={C.greenBtnText} />
+              <Ionicons name="call" size={Math.round(20 * s)} color={C.greenBtnText} />
               <Text style={[styles.botonTexto, { color: C.greenBtnText }]}>Llamar</Text>
             </TouchableOpacity>
 
             <TouchableOpacity style={[styles.boton, { backgroundColor: C.greenBtn }]} onPress={abrirMaps}>
-              <Ionicons name="location" size={20} color={C.greenBtnText} />
+              <Ionicons name="location" size={Math.round(20 * s)} color={C.greenBtnText} />
               <Text style={[styles.botonTexto, { color: C.greenBtnText }]}>Ubicación</Text>
             </TouchableOpacity>
           </View>
 
-          {/* Pie */}
           <Text style={[styles.footer, { color: C.muted }]}>
             Medic trabaja junto a {nombreFarmacia} para tu cobertura.
           </Text>
@@ -256,79 +262,122 @@ export default function FarmaciaScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  screen: { flex: 1, padding: 12 },
+function createStyles(s: number, isShort: boolean) {
+  const screenPad = clamp(12 * s, 10, 16);
+  const headerH = clamp(56 * s, 50, 64);
 
-  header: { height: 56, alignSelf: 'flex-start' },
-  backButton: { padding: 8 },
-  backArrow: { fontSize: 16, fontWeight: '800' },
+  const title = clamp(24 * s, 20, 30);
 
-  container: { alignItems: 'center', paddingVertical: 12 },
+  const cardRadius = clamp(16 * s, 14, 18);
+  const cardGapY = clamp(14 * s, 10, 18);
 
-  title: { fontSize: 24, fontWeight: '900' },
+  const headerPV = clamp(10 * s, 8, 12);
+  const headerPH = clamp(14 * s, 12, 16);
 
-  /* ======================= HORARIO CARD ======================= */
-  horarioCard: {
-    width: '100%',
-    borderRadius: 16,
-    overflow: 'hidden',
-    borderWidth: 1,
-    marginTop: 14,
-    marginBottom: 18,
-  },
+  const statusPH = clamp(14 * s, 12, 16);
+  const statusPT = clamp(12 * s, 10, 14);
+  const statusPB = clamp(10 * s, 8, 12);
 
-  horarioHeader: { paddingHorizontal: 14, paddingVertical: 10 },
-  horarioHeaderLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  horarioHeaderText: { fontWeight: '900', letterSpacing: 0.6 },
+  const pillPH = clamp(10 * s, 9, 12);
+  const pillPV = clamp(6 * s, 5, 8);
 
-  horarioStatusRow: { paddingHorizontal: 14, paddingTop: 12, paddingBottom: 10, gap: 8 },
+  const progressH = clamp(10 * s, 8, 12);
 
-  statusPill: {
-    alignSelf: 'flex-start',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 999,
-  },
-  statusPillText: { color: '#fff', fontWeight: '900' },
+  const weekPH = clamp(14 * s, 12, 16);
+  const weekPB = clamp(12 * s, 10, 14);
+  const weekGap = clamp(8 * s, 6, 10);
 
-  statusSub: { fontWeight: '800' },
+  const logo = clamp(120 * s, 96, 160);
+  const logoRadius = Math.round(logo / 2);
 
-  progressTrack: {
-    height: 10,
-    marginHorizontal: 14,
-    borderRadius: 999,
-    overflow: 'hidden',
-    marginBottom: 10,
-  },
-  progressFill: { height: '100%' },
+  const h2 = clamp(20 * s, 18, 24);
+  const body = clamp(16 * s, 14, 18);
 
-  weekTable: { paddingHorizontal: 14, paddingBottom: 12, gap: 8 },
-  weekRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4 },
-  weekRowToday: { borderRadius: 10, paddingHorizontal: 10 },
+  const btnGap = clamp(15 * s, 10, 16);
+  const btnPV = clamp(10 * s, 9, 12);
+  const btnPH = clamp(15 * s, 12, 18);
+  const btnRadius = clamp(25 * s, 18, 28);
+  const btnText = clamp(16 * s, 14, 18);
 
-  weekDay: { fontWeight: '900' },
-  weekTime: { fontWeight: '900' },
-  todayHint: { marginTop: 6, fontSize: 12, fontWeight: '700' },
+  const footer = clamp(14 * s, 12, 16);
 
-  /* ======================= INFO ======================= */
-  logo: { width: 120, height: 120, borderRadius: 60, marginBottom: 15 },
+  const pbScroll = isShort ? 18 : 24;
 
-  nombre: { fontSize: 20, fontWeight: '900', marginBottom: 5 },
-  direccion: { fontSize: 16, marginBottom: 5, textAlign: 'center', fontWeight: '700' },
-  telefono: { fontSize: 16, marginBottom: 20, fontWeight: '800' },
+  return StyleSheet.create({
+    // ✅ “helpers” fuera de RN types: usamos un style real para contentContainerStyle
+    __pbScroll: { paddingBottom: pbScroll },
 
-  botones: { flexDirection: 'row', gap: 15, marginBottom: 10 },
-  boton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 15,
-    borderRadius: 25,
-  },
-  botonTexto: { marginLeft: 6, fontSize: 16, fontWeight: '900' },
+    screen: { flex: 1, padding: screenPad },
 
-  footer: { fontSize: 14, textAlign: 'center', marginTop: 14, fontWeight: '700' },
-});
+    header: { height: headerH, alignSelf: 'flex-start' },
+    backButton: { padding: clamp(8 * s, 6, 10) },
+    backArrow: { fontSize: clamp(16 * s, 14, 18), fontWeight: '800' },
+
+    container: { alignItems: 'center', paddingVertical: clamp(12 * s, 10, 16) },
+
+    title: { fontSize: title, fontWeight: '900' },
+
+    horarioCard: {
+      width: '100%',
+      borderRadius: cardRadius,
+      overflow: 'hidden',
+      borderWidth: 1,
+      marginTop: cardGapY,
+      marginBottom: clamp(18 * s, 14, 22),
+    },
+
+    horarioHeader: { paddingHorizontal: headerPH, paddingVertical: headerPV },
+    horarioHeaderLeft: { flexDirection: 'row', alignItems: 'center', gap: clamp(10 * s, 8, 12) },
+    horarioHeaderText: { fontWeight: '900', letterSpacing: 0.6, fontSize: clamp(12 * s, 11, 14) },
+
+    horarioStatusRow: { paddingHorizontal: statusPH, paddingTop: statusPT, paddingBottom: statusPB, gap: clamp(8 * s, 6, 10) },
+
+    statusPill: {
+      alignSelf: 'flex-start',
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: clamp(8 * s, 6, 10),
+      paddingHorizontal: pillPH,
+      paddingVertical: pillPV,
+      borderRadius: 999,
+    },
+    statusPillText: { color: '#fff', fontWeight: '900', fontSize: clamp(13 * s, 12, 15) },
+
+    statusSub: { fontWeight: '800', fontSize: clamp(14 * s, 12, 16) },
+
+    progressTrack: {
+      height: progressH,
+      marginHorizontal: statusPH,
+      borderRadius: 999,
+      overflow: 'hidden',
+      marginBottom: clamp(10 * s, 8, 12),
+    },
+    progressFill: { height: '100%' },
+
+    weekTable: { paddingHorizontal: weekPH, paddingBottom: weekPB, gap: weekGap },
+    weekRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: clamp(4 * s, 3, 6) },
+    weekRowToday: { borderRadius: clamp(10 * s, 8, 12), paddingHorizontal: clamp(10 * s, 8, 12) },
+
+    weekDay: { fontWeight: '900', fontSize: clamp(14 * s, 12, 16) },
+    weekTime: { fontWeight: '900', fontSize: clamp(14 * s, 12, 16) },
+    todayHint: { marginTop: clamp(6 * s, 4, 8), fontSize: clamp(12 * s, 11, 13), fontWeight: '700' },
+
+    logo: { width: logo, height: logo, borderRadius: logoRadius, marginBottom: clamp(15 * s, 12, 18) },
+
+    nombre: { fontSize: h2, fontWeight: '900', marginBottom: clamp(5 * s, 4, 8) },
+    direccion: { fontSize: body, marginBottom: clamp(5 * s, 4, 8), textAlign: 'center', fontWeight: '700' },
+    telefono: { fontSize: body, marginBottom: clamp(20 * s, 14, 24), fontWeight: '800' },
+
+    botones: { flexDirection: 'row', gap: btnGap, marginBottom: clamp(10 * s, 8, 14), flexWrap: 'wrap', justifyContent: 'center' },
+    boton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: btnPV,
+      paddingHorizontal: btnPH,
+      borderRadius: btnRadius,
+    },
+    botonTexto: { marginLeft: clamp(6 * s, 5, 10), fontSize: btnText, fontWeight: '900' },
+
+    footer: { fontSize: footer, textAlign: 'center', marginTop: clamp(14 * s, 10, 18), fontWeight: '700' },
+  });
+}
