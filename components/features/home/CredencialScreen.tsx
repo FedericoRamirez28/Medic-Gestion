@@ -228,7 +228,7 @@ export default function CredencialScreen() {
   }
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.surface }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.bg }]}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton} activeOpacity={0.85}>
           <Text style={[styles.backArrow, { color: theme.colors.primary }]}>‹ Volver</Text>

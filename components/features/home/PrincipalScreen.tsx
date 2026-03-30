@@ -83,7 +83,7 @@ const InicioScreen: React.FC<InicioProps> = ({ navigation }) => {
 
   return (
     <ScrollView
-      style={[styles.container, { backgroundColor: theme.colors.surface }]}
+      style={[styles.container, { backgroundColor: theme.colors.bg }]}
       contentContainerStyle={{ padding: clamp(16 * s, 12, 18), paddingBottom: 24 }}
       showsVerticalScrollIndicator={false}
     >

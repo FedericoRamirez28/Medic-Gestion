@@ -10,7 +10,6 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import * as Notifications from 'expo-notifications';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppTheme } from '@/components/theme/AppThemeProvider';
@@ -20,16 +19,14 @@ type MedReminder = {
   name: string;
   dose?: string;
   note?: string;
-  hour: number; // 0-23
-  minute: number; // 0-59
-  notificationId?: string; // para cancelar
+  hour: number;
+  minute: number;
+  notificationId?: string;
   createdAt: number;
-
-  // ✅ STOCK
   stockEnabled?: boolean;
   stockLeft?: number;
-  stockDose?: number; // default 1
-  stockLow?: number; // default 5
+  stockDose?: number;
+  stockLow?: number;
 };
 
 type TabKey = 'hoy' | 'todos' | 'agregar';
@@ -118,25 +115,49 @@ async function saveTaken(map: Record<string, Record<string, number>>) {
   await AsyncStorage.setItem(TAKEN_KEY, JSON.stringify(map));
 }
 
-// Notificaciones: handler por defecto
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
-});
+function getNotificationsModule(): any | null {
+  if (Platform.OS === 'web') return null;
+
+  try {
+    // Carga diferida para evitar que expo-notifications se evalúe al importar la screen
+    // y rompa con ServerRegistrationModule.web.js antes de iniciar el proyecto.
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    return require('expo-notifications');
+  } catch {
+    return null;
+  }
+}
+
+function configureNotifications() {
+  const Notifications = getNotificationsModule();
+  if (!Notifications) return;
+
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowAlert: true,
+      shouldPlaySound: true,
+      shouldSetBadge: false,
+      shouldShowBanner: true,
+      shouldShowList: true,
+    }),
+  });
+}
 
 async function ensureNotifPermissions() {
+  const Notifications = getNotificationsModule();
+  if (!Notifications) return false;
+
   const settings = await Notifications.getPermissionsAsync();
   if (settings.status === 'granted') return true;
+
   const req = await Notifications.requestPermissionsAsync();
   return req.status === 'granted';
 }
 
 async function scheduleDailyNotification(rem: MedReminder) {
+  const Notifications = getNotificationsModule();
+  if (!Notifications) return undefined;
+
   const ok = await ensureNotifPermissions();
   if (!ok) {
     Alert.alert(
@@ -171,7 +192,10 @@ async function scheduleDailyNotification(rem: MedReminder) {
 }
 
 async function cancelNotification(notificationId?: string) {
+  const Notifications = getNotificationsModule();
+  if (!Notifications) return;
   if (!notificationId) return;
+
   try {
     await Notifications.cancelScheduledNotificationAsync(notificationId);
   } catch {}
@@ -185,20 +209,17 @@ export default function AsistenteMedicacionScreen() {
   const [items, setItems] = useState<MedReminder[]>([]);
   const [takenMap, setTakenMap] = useState<Record<string, Record<string, number>>>({});
 
-  // Form Agregar
   const [name, setName] = useState('');
   const [dose, setDose] = useState('');
   const [note, setNote] = useState('');
   const [hour, setHour] = useState('9');
   const [minute, setMinute] = useState('0');
 
-  // Form stock (Agregar)
   const [stockEnabled, setStockEnabled] = useState(false);
   const [stockLeft, setStockLeft] = useState('30');
   const [stockDose, setStockDose] = useState('1');
   const [stockLow, setStockLow] = useState('5');
 
-  // ✅ Modal Configurar
   const [editOpen, setEditOpen] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
 
@@ -212,6 +233,10 @@ export default function AsistenteMedicacionScreen() {
   const [eStockLeft, setEStockLeft] = useState('0');
   const [eStockDose, setEStockDose] = useState('1');
   const [eStockLow, setEStockLow] = useState('5');
+
+  useEffect(() => {
+    configureNotifications();
+  }, []);
 
   useEffect(() => {
     (async () => {
@@ -232,7 +257,7 @@ export default function AsistenteMedicacionScreen() {
     });
   }, [items]);
 
-  const todayKey = useMemo(() => dateKey(new Date()), []);
+  const todayKey = dateKey(new Date());
 
   const nextDose = useMemo(() => {
     if (!items.length) return null;
@@ -338,7 +363,6 @@ export default function AsistenteMedicacionScreen() {
       hour: h,
       minute: m,
       createdAt: Date.now(),
-
       stockEnabled: stEnabled,
       stockLeft: stEnabled ? (typeof stLeft === 'number' ? stLeft : 0) : undefined,
       stockDose: stEnabled ? stDose : undefined,
@@ -357,13 +381,12 @@ export default function AsistenteMedicacionScreen() {
     setNote('');
     setHour(String(h));
     setMinute(String(m));
-
     setStockEnabled(false);
     setStockLeft('30');
     setStockDose('1');
     setStockLow('5');
-
     setTab('hoy');
+
     Alert.alert('Listo', 'Recordatorio creado.');
   };
 
@@ -379,7 +402,6 @@ export default function AsistenteMedicacionScreen() {
         onPress: async () => {
           await cancelNotification(target.notificationId);
 
-          // limpiar tomados
           const nextTaken = { ...takenMap };
           for (const dk of Object.keys(nextTaken)) {
             if (nextTaken[dk]?.[id]) {
@@ -391,12 +413,10 @@ export default function AsistenteMedicacionScreen() {
           setTakenMap(nextTaken);
           await saveTaken(nextTaken);
 
-          // borrar item
           const nextItems = items.filter((x) => x.id !== id);
           setItems(nextItems);
           await saveReminders(nextItems);
 
-          // cerrar modal si estaba abierto
           if (editId === id) {
             setEditOpen(false);
             setEditId(null);
@@ -423,7 +443,6 @@ export default function AsistenteMedicacionScreen() {
     ]);
   };
 
-  // ✅ abrir modal con datos del recordatorio
   const openEdit = (rem: MedReminder) => {
     setEditId(rem.id);
     setEName(rem.name ?? '');
@@ -469,14 +488,12 @@ export default function AsistenteMedicacionScreen() {
       note: eNote.trim() || undefined,
       hour: h,
       minute: m,
-
       stockEnabled: stEnabled,
       stockLeft: stEnabled ? (typeof stLeft === 'number' ? stLeft : 0) : undefined,
       stockDose: stEnabled ? stDose : undefined,
       stockLow: stEnabled ? stLow : undefined,
     };
 
-    // Si cambió hora/minuto o texto => reprogramar notificación para que el body quede correcto
     const timeChanged = old.hour !== updated.hour || old.minute !== updated.minute;
     const contentChanged = old.name !== updated.name || old.dose !== updated.dose;
 
@@ -501,15 +518,8 @@ export default function AsistenteMedicacionScreen() {
   const confirmOptions = (rem: MedReminder) => {
     Alert.alert(rem.name, 'Opciones', [
       { text: 'Cancelar', style: 'cancel' },
-      {
-        text: 'Configurar',
-        onPress: () => openEdit(rem),
-      },
-      {
-        text: 'Borrar',
-        style: 'destructive',
-        onPress: () => removeReminder(rem.id),
-      },
+      { text: 'Configurar', onPress: () => openEdit(rem) },
+      { text: 'Borrar', style: 'destructive', onPress: () => removeReminder(rem.id) },
     ]);
   };
 
@@ -668,7 +678,6 @@ export default function AsistenteMedicacionScreen() {
               style={[styles.input, { color: theme.colors.text, borderColor: theme.colors.border }]}
             />
 
-            {/* STOCK */}
             <View style={[styles.stockCard, { borderColor: theme.colors.border }]}>
               <Pressable
                 onPress={() => setStockEnabled((v) => !v)}
@@ -750,7 +759,7 @@ export default function AsistenteMedicacionScreen() {
   const data = tab === 'hoy' ? todayTimeline : tab === 'todos' ? sorted : [];
 
   return (
-    <View style={[styles.screen, { backgroundColor: theme.colors.surface }]}>
+    <View style={[styles.screen, { backgroundColor: theme.colors.bg}]}>
       <FlatList
         data={data as any}
         keyExtractor={(x: any) => (tab === 'hoy' ? x.rem.id : x.id)}
@@ -802,7 +811,6 @@ export default function AsistenteMedicacionScreen() {
                 ) : null}
               </View>
 
-              {/* ✅ Botón opciones */}
               <Pressable
                 onPress={() => confirmOptions(rem)}
                 accessibilityRole="button"
@@ -813,7 +821,6 @@ export default function AsistenteMedicacionScreen() {
                 <Ionicons name="ellipsis-vertical" size={18} color={theme.colors.muted} />
               </Pressable>
 
-              {/* ✅ Tomado / Deshacer solo en Hoy */}
               {tab === 'hoy' ? (
                 <Pressable
                   onPress={() => (isTaken ? undoTaken(rem.id) : markTaken(rem.id))}
@@ -848,7 +855,6 @@ export default function AsistenteMedicacionScreen() {
         }
       />
 
-      {/* ✅ MODAL CONFIGURAR */}
       <Modal visible={editOpen} transparent animationType="fade" onRequestClose={() => setEditOpen(false)}>
         <View style={styles.modalBackdrop}>
           <View style={[styles.modalCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
@@ -903,7 +909,6 @@ export default function AsistenteMedicacionScreen() {
               style={[styles.input, { color: theme.colors.text, borderColor: theme.colors.border }]}
             />
 
-            {/* Stock */}
             <View style={[styles.stockCard, { borderColor: theme.colors.border }]}>
               <Pressable
                 onPress={() => setEStockEnabled((v) => !v)}
@@ -916,9 +921,7 @@ export default function AsistenteMedicacionScreen() {
                   size={20}
                   color={theme.colors.text}
                 />
-                <Text style={[styles.stockToggleText, { color: theme.colors.text }]}>
-                  Controlar stock
-                </Text>
+                <Text style={[styles.stockToggleText, { color: theme.colors.text }]}>Controlar stock</Text>
               </Pressable>
 
               {eStockEnabled ? (
@@ -958,9 +961,7 @@ export default function AsistenteMedicacionScreen() {
 
                     <View style={{ flex: 1 }}>
                       <View style={{ height: 18 }} />
-                      <Text style={[styles.stockHint, { color: theme.colors.muted }]}>
-                        Umbral de aviso.
-                      </Text>
+                      <Text style={[styles.stockHint, { color: theme.colors.muted }]}>Umbral de aviso.</Text>
                     </View>
                   </View>
                 </View>
@@ -979,7 +980,10 @@ export default function AsistenteMedicacionScreen() {
               <Pressable
                 onPress={saveEdit}
                 accessibilityRole="button"
-                style={[styles.modalBtn, { backgroundColor: theme.colors.tabActive, borderColor: theme.colors.tabActive }]}
+                style={[
+                  styles.modalBtn,
+                  { backgroundColor: theme.colors.tabActive, borderColor: theme.colors.tabActive },
+                ]}
               >
                 <Text style={{ color: '#fff', fontWeight: '900' }}>Guardar</Text>
               </Pressable>
@@ -1122,7 +1126,6 @@ const styles = StyleSheet.create({
     marginRight: 2,
   },
 
-  // Modal
   modalBackdrop: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.35)',

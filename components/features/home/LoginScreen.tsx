@@ -3,6 +3,7 @@ import CustomBackground from '@/components/ui/Background';
 import ButtonAmbulance from '@/components/ui/LlamarAmbulancia';
 import Logo from '@/components/ui/Logo';
 import { ThemedText } from '@/components/ui/ThemedText';
+import UpdateChecker from '@/components/ui/UpdateChecker';
 import * as NavigationBar from 'expo-navigation-bar';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useMemo } from 'react';
@@ -47,7 +48,6 @@ export default function HomeScreen() {
   const styles = useMemo(() => createStyles(s), [s]);
 
   useEffect(() => {
-    // ✅ Barra inferior Android alineada al nuevo fondo
     NavigationBar.setBackgroundColorAsync(COLORS.bg).catch(() => {});
     NavigationBar.setButtonStyleAsync('dark').catch(() => {});
   }, []);
@@ -57,7 +57,10 @@ export default function HomeScreen() {
 
   return (
     <SafeAreaView style={styles.safe}>
-      {/* Tu background custom sigue, pero el "safe" ya alinea a la nueva paleta */}
+      {/* ✅ chequeo de actualización al abrir la app */}
+      <UpdateChecker />
+
+      {/* Tu background custom sigue */}
       <CustomBackground />
 
       <KeyboardAvoidingView
@@ -113,7 +116,6 @@ export default function HomeScreen() {
 
 function createStyles(s: number) {
   const radiusLg = clamp(18 * s, 16, 22);
-  const radiusMd = clamp(12 * s, 10, 14);
 
   return StyleSheet.create({
     flex: { flex: 1 },
