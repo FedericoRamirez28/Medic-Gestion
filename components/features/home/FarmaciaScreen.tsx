@@ -60,39 +60,47 @@ export default function FarmaciaScreen() {
   const router = useRouter();
   const { theme } = useAppTheme();
 
-  const isDark = !!theme?.isDark;
-  const colors = theme?.colors;
-
   const { width, height } = useWindowDimensions();
   const s = useMemo(() => clamp(width / 390, 0.85, 1.2), [width]);
   const isShort = height < 740;
 
   const styles = useMemo(() => createStyles(s, isShort), [s, isShort]);
 
-  // ✅ OJO: no usamos `primary` (no existe). Usamos tabActive como “link/acento”.
+  /**
+   * ✅ Paleta nueva (fallback) basada en tus tokens:
+   * bg: #e0e5f0
+   * surface: #ffffff
+   * primary: #008f6b
+   * border: #dde2ee
+   * ink: #1f2933
+   * inkSoft: #6b7280
+   */
   const C = {
-    bg: colors?.bg ?? (isDark ? '#0B1220' : '#F9FAFB'),
-    surface: colors?.surface ?? (isDark ? '#0F1B2D' : '#FFFFFF'),
-    text: colors?.text ?? (isDark ? '#E5E7EB' : '#0F172A'),
-    muted: colors?.muted ?? (isDark ? '#9CA3AF' : '#64748B'),
-    border: colors?.border ?? (isDark ? '#22324A' : '#E5E7EB'),
+    bg: theme.colors.bg ?? '#e0e5f0',
+    surface: theme.colors.surface ?? '#ffffff',
+    card: theme.colors.card ?? '#ffffff',
+    text: theme.colors.text ?? '#1f2933',
+    muted: theme.colors.muted ?? '#6b7280',
+    border: theme.colors.border ?? '#dde2ee',
 
-    link: colors?.tabActive ?? '#005BBF',
+    // “primary” del sistema → usamos tabActive como acento corporativo
+    primary: theme.colors.tabActive ?? '#008f6b',
+    primarySoft: (theme as any)?.colors?.primarySoft ?? '#e0f4ee',
 
-    headerBg: colors?.headerBg ?? '#0E7490',
-    headerText: colors?.headerText ?? '#FFFFFF',
+    headerBg: theme.colors.headerBg ?? (theme.colors.tabActive ?? '#008f6b'),
+    headerText: theme.colors.headerText ?? '#ffffff',
 
-    greenBtn: '#1E5631',
-    greenBtnText: '#FFFFFF',
+    // Status
+    statusOpen: (theme as any)?.colors?.success ?? '#059669',
+    statusClosed: theme.colors.muted ?? '#6b7280',
 
-    statusOpen: '#16A34A',
-    statusClosed: isDark ? '#475569' : '#64748B',
+    // Progress
+    track: theme.colors.tabBorder ?? theme.colors.border ?? '#dde2ee',
+    fill: theme.colors.tabActive ?? '#008f6b',
 
-    track: isDark ? '#24324A' : '#E5E7EB',
-    fill: '#22C55E',
-
-    todayRowBg: isDark ? 'rgba(56,189,248,0.10)' : 'rgba(14,116,144,0.08)',
-    todayDay: '#0E7490',
+    // Today highlight
+    todayRowBg: theme.isDark ? 'rgba(224,244,238,0.10)' : 'rgba(0,143,107,0.08)',
+    todayDay: theme.colors.tabActive ?? '#008f6b',
   };
 
   const telefono = '011 4484-4277';
@@ -103,6 +111,7 @@ export default function FarmaciaScreen() {
   const abrirMaps = () =>
     Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(direccion)}`);
 
+  // (Mantengo tu comportamiento: se calcula una vez al entrar)
   const now = useMemo(() => new Date(), []);
   const todayKey = dayKeyFromDate(now);
   const todayLabel = DAY_LABELS[todayKey];
@@ -168,9 +177,9 @@ export default function FarmaciaScreen() {
   return (
     <View style={[styles.screen, { backgroundColor: C.bg }]}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}>
+        <TouchableOpacity onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Volver">
           <View style={styles.backButton}>
-            <Text style={[styles.backArrow, { color: C.link }]}>‹ Volver</Text>
+            <Text style={[styles.backArrow, { color: C.primary }]}>‹ Volver</Text>
           </View>
         </TouchableOpacity>
       </View>
@@ -180,7 +189,7 @@ export default function FarmaciaScreen() {
           <Text style={[styles.title, { color: C.text }]}>Farmacia {nombreFarmacia}</Text>
 
           {/* Horario Card */}
-          <View style={[styles.horarioCard, { backgroundColor: C.surface, borderColor: C.border }]}>
+          <View style={[styles.horarioCard, { backgroundColor: C.card, borderColor: C.border }]}>
             <View style={[styles.horarioHeader, { backgroundColor: C.headerBg }]}>
               <View style={styles.horarioHeaderLeft}>
                 <Ionicons name="time-outline" size={Math.round(18 * s)} color={C.headerText} />
@@ -190,7 +199,11 @@ export default function FarmaciaScreen() {
 
             <View style={styles.horarioStatusRow}>
               <View style={[styles.statusPill, { backgroundColor: horarioInfo.openNow ? C.statusOpen : C.statusClosed }]}>
-                <Ionicons name={horarioInfo.openNow ? 'checkmark-circle' : 'close-circle'} size={Math.round(16 * s)} color="#fff" />
+                <Ionicons
+                  name={horarioInfo.openNow ? 'checkmark-circle' : 'close-circle'}
+                  size={Math.round(16 * s)}
+                  color="#fff"
+                />
                 <Text style={styles.statusPillText}>{horarioInfo.statusText}</Text>
               </View>
 
@@ -217,7 +230,7 @@ export default function FarmaciaScreen() {
                     key={r.key}
                     style={[
                       styles.weekRow,
-                      isToday ? [styles.weekRowToday, { backgroundColor: C.todayRowBg }] : null,
+                      isToday ? [styles.weekRowToday, { backgroundColor: C.todayRowBg, borderColor: C.border }] : null,
                     ]}
                   >
                     <Text style={[styles.weekDay, { color: isToday ? C.todayDay : C.text }]}>{r.label}</Text>
@@ -233,7 +246,11 @@ export default function FarmaciaScreen() {
           </View>
 
           {/* Logo */}
-          <Image source={require('@/assets/images/logo-medic-simple.png')} style={styles.logo} resizeMode="contain" />
+          <Image
+            source={require('@/assets/images/logo-medic-simple.png')}
+            style={styles.logo}
+            resizeMode="contain"
+          />
 
           {/* Info */}
           <Text style={[styles.nombre, { color: C.text }]}>Dirección</Text>
@@ -242,14 +259,26 @@ export default function FarmaciaScreen() {
 
           {/* Botones */}
           <View style={styles.botones}>
-            <TouchableOpacity style={[styles.boton, { backgroundColor: C.greenBtn }]} onPress={abrirTelefono}>
-              <Ionicons name="call" size={Math.round(20 * s)} color={C.greenBtnText} />
-              <Text style={[styles.botonTexto, { color: C.greenBtnText }]}>Llamar</Text>
+            <TouchableOpacity
+              style={[styles.boton, { backgroundColor: C.primary }]}
+              onPress={abrirTelefono}
+              accessibilityRole="button"
+              accessibilityLabel="Llamar a la farmacia"
+              activeOpacity={0.9}
+            >
+              <Ionicons name="call" size={Math.round(20 * s)} color="#fff" />
+              <Text style={[styles.botonTexto, { color: '#fff' }]}>Llamar</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={[styles.boton, { backgroundColor: C.greenBtn }]} onPress={abrirMaps}>
-              <Ionicons name="location" size={Math.round(20 * s)} color={C.greenBtnText} />
-              <Text style={[styles.botonTexto, { color: C.greenBtnText }]}>Ubicación</Text>
+            <TouchableOpacity
+              style={[styles.boton, { backgroundColor: C.primary }]}
+              onPress={abrirMaps}
+              accessibilityRole="button"
+              accessibilityLabel="Ver ubicación en el mapa"
+              activeOpacity={0.9}
+            >
+              <Ionicons name="location" size={Math.round(20 * s)} color="#fff" />
+              <Text style={[styles.botonTexto, { color: '#fff' }]}>Ubicación</Text>
             </TouchableOpacity>
           </View>
 
@@ -304,7 +333,6 @@ function createStyles(s: number, isShort: boolean) {
   const pbScroll = isShort ? 18 : 24;
 
   return StyleSheet.create({
-    // ✅ “helpers” fuera de RN types: usamos un style real para contentContainerStyle
     __pbScroll: { paddingBottom: pbScroll },
 
     screen: { flex: 1, padding: screenPad },
@@ -330,7 +358,12 @@ function createStyles(s: number, isShort: boolean) {
     horarioHeaderLeft: { flexDirection: 'row', alignItems: 'center', gap: clamp(10 * s, 8, 12) },
     horarioHeaderText: { fontWeight: '900', letterSpacing: 0.6, fontSize: clamp(12 * s, 11, 14) },
 
-    horarioStatusRow: { paddingHorizontal: statusPH, paddingTop: statusPT, paddingBottom: statusPB, gap: clamp(8 * s, 6, 10) },
+    horarioStatusRow: {
+      paddingHorizontal: statusPH,
+      paddingTop: statusPT,
+      paddingBottom: statusPB,
+      gap: clamp(8 * s, 6, 10),
+    },
 
     statusPill: {
       alignSelf: 'flex-start',
@@ -356,7 +389,11 @@ function createStyles(s: number, isShort: boolean) {
 
     weekTable: { paddingHorizontal: weekPH, paddingBottom: weekPB, gap: weekGap },
     weekRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: clamp(4 * s, 3, 6) },
-    weekRowToday: { borderRadius: clamp(10 * s, 8, 12), paddingHorizontal: clamp(10 * s, 8, 12) },
+    weekRowToday: {
+      borderRadius: clamp(10 * s, 8, 12),
+      paddingHorizontal: clamp(10 * s, 8, 12),
+      borderWidth: 1,
+    },
 
     weekDay: { fontWeight: '900', fontSize: clamp(14 * s, 12, 16) },
     weekTime: { fontWeight: '900', fontSize: clamp(14 * s, 12, 16) },
@@ -368,7 +405,13 @@ function createStyles(s: number, isShort: boolean) {
     direccion: { fontSize: body, marginBottom: clamp(5 * s, 4, 8), textAlign: 'center', fontWeight: '700' },
     telefono: { fontSize: body, marginBottom: clamp(20 * s, 14, 24), fontWeight: '800' },
 
-    botones: { flexDirection: 'row', gap: btnGap, marginBottom: clamp(10 * s, 8, 14), flexWrap: 'wrap', justifyContent: 'center' },
+    botones: {
+      flexDirection: 'row',
+      gap: btnGap,
+      marginBottom: clamp(10 * s, 8, 14),
+      flexWrap: 'wrap',
+      justifyContent: 'center',
+    },
     boton: {
       flexDirection: 'row',
       alignItems: 'center',

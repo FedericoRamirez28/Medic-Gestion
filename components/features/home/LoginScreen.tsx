@@ -23,32 +23,41 @@ function clamp(n: number, min: number, max: number) {
   return Math.max(min, Math.min(max, n));
 }
 
+// ✅ Nueva paleta (equivalente a tus tokens web)
+const COLORS = {
+  bg: '#e0e5f0',
+  surface: '#ffffff',
+  primary: '#008f6b',
+  primarySoft: '#e0f4ee',
+  border: '#dde2ee',
+  ink: '#1f2933',
+  inkSoft: '#6b7280',
+};
+
 export default function HomeScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
 
-  // Escala suave para tamaños/espacios (mejor consistencia entre devices)
   const s = useMemo(() => {
-    const base = width / 390; // ~ ancho típico
+    const base = width / 390;
     return clamp(base, 0.85, 1.15);
   }, [width]);
 
   const styles = useMemo(() => createStyles(s), [s]);
 
   useEffect(() => {
-    NavigationBar.setBackgroundColorAsync('#BFD6EF').catch(() => {});
+    // ✅ Barra inferior Android alineada al nuevo fondo
+    NavigationBar.setBackgroundColorAsync(COLORS.bg).catch(() => {});
     NavigationBar.setButtonStyleAsync('dark').catch(() => {});
   }, []);
 
-  // Para evitar cortes con teclados distintos/gestures
   const keyboardOffset = (insets.top || 0) + (Platform.OS === 'ios' ? 8 : 0);
-
-  // Padding inferior real para botón, respetando gestures
   const bottomPad = Math.max(insets.bottom || 0, 10);
 
   return (
     <SafeAreaView style={styles.safe}>
+      {/* Tu background custom sigue, pero el "safe" ya alinea a la nueva paleta */}
       <CustomBackground />
 
       <KeyboardAvoidingView
@@ -68,21 +77,26 @@ export default function HomeScreen() {
           </View>
 
           {/* CENTER */}
-          <View style={styles.stepContainer}>
-            <ThemedText type="subtitle" style={styles.title}>
-              Iniciar sesión
-            </ThemedText>
+          <View style={styles.centerWrap}>
+            <View style={styles.card}>
+              <ThemedText type="subtitle" style={styles.title}>
+                Iniciar sesión
+              </ThemedText>
 
-            <LoginForm />
+              <View style={styles.divider} />
 
-            <TouchableOpacity
-              onPress={() => router.push('/Afiliacion')}
-              accessibilityRole="button"
-              accessibilityLabel="Afiliate a nuestros planes"
-              style={styles.linkWrap}
-            >
-              <Text style={styles.linkAfilliate}>Afiliate a nuestros planes</Text>
-            </TouchableOpacity>
+              <LoginForm />
+
+              <TouchableOpacity
+                onPress={() => router.push('/Afiliacion')}
+                accessibilityRole="button"
+                accessibilityLabel="Afiliate a nuestros planes"
+                style={styles.linkWrap}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.linkAfilliate}>Afiliate a nuestros planes</Text>
+              </TouchableOpacity>
+            </View>
           </View>
 
           {/* BOTTOM */}
@@ -90,7 +104,6 @@ export default function HomeScreen() {
             <ButtonAmbulance />
           </View>
 
-          {/* “colchón” extra para pantallas MUY bajas */}
           {height < 700 ? <View style={{ height: 12 }} /> : null}
         </ScrollView>
       </KeyboardAvoidingView>
@@ -99,48 +112,80 @@ export default function HomeScreen() {
 }
 
 function createStyles(s: number) {
+  const radiusLg = clamp(18 * s, 16, 22);
+  const radiusMd = clamp(12 * s, 10, 14);
+
   return StyleSheet.create({
     flex: { flex: 1 },
     safe: {
       flex: 1,
-      backgroundColor: '#BFD6EF',
+      backgroundColor: COLORS.bg,
     },
     scrollContent: {
       flexGrow: 1,
-      paddingHorizontal: 16,
-      paddingTop: 8,
+      paddingHorizontal: clamp(16 * s, 14, 18),
+      paddingTop: clamp(10 * s, 8, 14),
       paddingBottom: 10,
       justifyContent: 'space-between',
     },
+
     logoContainer: {
       marginTop: 10 * s,
       alignItems: 'center',
     },
-    stepContainer: {
+
+    centerWrap: {
       alignItems: 'center',
-      paddingHorizontal: 8,
-      gap: 10 * s,
+      justifyContent: 'center',
+      paddingTop: clamp(6 * s, 4, 10),
     },
+
+    card: {
+      width: '100%',
+      maxWidth: 520,
+      backgroundColor: COLORS.surface,
+      borderRadius: radiusLg,
+      borderWidth: 1,
+      borderColor: COLORS.border,
+      padding: clamp(16 * s, 14, 20),
+      shadowColor: '#0f172a',
+      shadowOpacity: 0.16,
+      shadowRadius: 16,
+      shadowOffset: { width: 0, height: 10 },
+      elevation: 6,
+      gap: clamp(10 * s, 8, 14),
+    },
+
     title: {
       fontSize: clamp(34 * s, 24, 38),
-      marginTop: 10 * s,
+      marginTop: 2,
       marginBottom: 2,
-      color: '#111111',
+      color: COLORS.ink,
       fontFamily: 'Roboto-SemiBold',
       textAlign: 'center',
       lineHeight: clamp(38 * s, 28, 44),
     },
+
+    divider: {
+      height: 1,
+      backgroundColor: COLORS.border,
+      borderRadius: 999,
+      marginBottom: 2,
+    },
+
     linkWrap: {
-      paddingVertical: 8 * s,
+      paddingVertical: clamp(8 * s, 7, 10),
       paddingHorizontal: 8,
+      alignSelf: 'center',
     },
     linkAfilliate: {
-      color: '#212121',
-      fontWeight: '600',
-      fontSize: clamp(18 * s, 14, 20),
+      color: COLORS.primary,
+      fontWeight: '800',
+      fontSize: clamp(16 * s, 14, 18),
       textDecorationLine: 'underline',
       textAlign: 'center',
     },
+
     ambulanceContainer: {
       paddingHorizontal: 8,
       paddingTop: 10 * s,

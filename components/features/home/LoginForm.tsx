@@ -23,6 +23,17 @@ function clamp(n: number, min: number, max: number) {
   return Math.max(min, Math.min(max, n));
 }
 
+// ✅ Paleta nueva
+const COLORS = {
+  bg: '#e0e5f0',
+  surface: '#ffffff',
+  primary: '#008f6b',
+  primarySoft: '#e0f4ee',
+  border: '#dde2ee',
+  ink: '#1f2933',
+  inkSoft: '#6b7280',
+};
+
 export default function LoginForm() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -38,7 +49,7 @@ export default function LoginForm() {
   const [loading, setLoading] = useState(false);
 
   const dniVal = useMemo(() => dni.trim().replace(/\D/g, ''), [dni]);
-  const socioVal = useMemo(() => numeroSocio.trim(), [numeroSocio]); // conservar ceros
+  const socioVal = useMemo(() => numeroSocio.trim(), [numeroSocio]);
 
   const handleLogin = async () => {
     if (loading) return;
@@ -68,19 +79,25 @@ export default function LoginForm() {
     }
   };
 
-  const Tab = ({ id, label }: { id: Mode; label: string }) => (
-    <TouchableOpacity
-      onPress={() => setMode(id)}
-      style={[styles.tab, mode === id && styles.tabActive]}
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      activeOpacity={0.9}
-    >
-      <Text style={[styles.tabText, mode === id && styles.tabTextActive]} numberOfLines={1}>
-        {label}
-      </Text>
-    </TouchableOpacity>
-  );
+  const Tab = ({ id, label }: { id: Mode; label: string }) => {
+    const active = mode === id;
+    return (
+      <TouchableOpacity
+        onPress={() => setMode(id)}
+        style={[
+          styles.tab,
+          active && styles.tabActive,
+        ]}
+        accessibilityRole="button"
+        accessibilityLabel={label}
+        activeOpacity={0.9}
+      >
+        <Text style={[styles.tabText, active && styles.tabTextActive]} numberOfLines={1}>
+          {label}
+        </Text>
+      </TouchableOpacity>
+    );
+  };
 
   const keyboardOffset = (insets.top || 0) + (Platform.OS === 'ios' ? 8 : 0);
 
@@ -107,6 +124,16 @@ export default function LoginForm() {
               placeholder="Ej: 45318128"
               style={styles.input}
               contentStyle={styles.inputContent}
+              outlineStyle={styles.outline}
+              theme={{
+                colors: {
+                  primary: COLORS.primary,
+                  outline: COLORS.border,
+                  background: COLORS.surface,
+                  text: COLORS.ink,
+                  placeholder: COLORS.inkSoft,
+                },
+              }}
               returnKeyType="send"
               onSubmitEditing={handleLogin}
               editable={!loading}
@@ -122,6 +149,16 @@ export default function LoginForm() {
               placeholder="Ej: 00509026"
               style={styles.input}
               contentStyle={styles.inputContent}
+              outlineStyle={styles.outline}
+              theme={{
+                colors: {
+                  primary: COLORS.primary,
+                  outline: COLORS.border,
+                  background: COLORS.surface,
+                  text: COLORS.ink,
+                  placeholder: COLORS.inkSoft,
+                },
+              }}
               returnKeyType="send"
               onSubmitEditing={handleLogin}
               editable={!loading}
@@ -131,13 +168,17 @@ export default function LoginForm() {
 
           <TouchableOpacity
             onPress={handleLogin}
-            style={[styles.buttonContainer, loading && { opacity: 0.7 }]}
+            style={[styles.buttonContainer, loading && { opacity: 0.75 }]}
             disabled={loading}
             accessibilityRole="button"
             accessibilityLabel="Ingresar"
             activeOpacity={0.9}
           >
-            {loading ? <ActivityIndicator /> : <Text style={styles.buttonText}>INGRESAR</Text>}
+            {loading ? (
+              <ActivityIndicator color="#ffffff" />
+            ) : (
+              <Text style={styles.buttonText}>INGRESAR</Text>
+            )}
           </TouchableOpacity>
         </View>
       </TouchableWithoutFeedback>
@@ -146,7 +187,10 @@ export default function LoginForm() {
 }
 
 function createStyles(s: number) {
-  const maxWidth = 440; // se ve bien en tablets también
+  const maxWidth = 520;
+  const radiusLg = clamp(16 * s, 14, 18);
+  const radiusMd = clamp(12 * s, 10, 14);
+
   return StyleSheet.create({
     kav: {
       alignSelf: 'stretch',
@@ -155,52 +199,69 @@ function createStyles(s: number) {
     container: {
       width: '100%',
       maxWidth,
-      paddingHorizontal: 12,
-      marginTop: 8 * s,
-      gap: 12 * s,
       alignSelf: 'center',
+      gap: clamp(12 * s, 10, 14),
     },
+
     tabs: {
       flexDirection: 'row',
-      backgroundColor: '#eef2f7',
-      borderRadius: 10,
+      backgroundColor: COLORS.primarySoft,
+      borderRadius: 999,
       padding: 4,
       gap: 4,
+      borderWidth: 1,
+      borderColor: COLORS.border,
     },
     tab: {
       flex: 1,
       paddingVertical: clamp(10 * s, 8, 14),
-      borderRadius: 8,
+      borderRadius: 999,
       alignItems: 'center',
       justifyContent: 'center',
     },
-    tabActive: { backgroundColor: '#fff' },
+    tabActive: {
+      backgroundColor: COLORS.surface,
+      borderWidth: 1,
+      borderColor: COLORS.border,
+    },
     tabText: {
-      color: '#6b7280',
-      fontWeight: '700',
+      color: COLORS.inkSoft,
+      fontWeight: '900',
       fontSize: clamp(13 * s, 12, 15),
       textAlign: 'center',
     },
-    tabTextActive: { color: '#111827' },
+    tabTextActive: { color: COLORS.ink },
+
     input: {
-      backgroundColor: '#fff',
+      backgroundColor: COLORS.surface,
     },
     inputContent: {
       fontSize: clamp(16 * s, 14, 18),
+      color: COLORS.ink,
     },
+    outline: {
+      borderRadius: radiusMd,
+      borderWidth: 1,
+    },
+
     buttonContainer: {
-      backgroundColor: '#f89f51',
-      borderRadius: 10,
-      elevation: 5,
+      backgroundColor: COLORS.primary,
+      borderRadius: 999,
       paddingVertical: clamp(12 * s, 10, 16),
       paddingHorizontal: 24,
       alignItems: 'center',
       justifyContent: 'center',
+      shadowColor: COLORS.primary,
+      shadowOpacity: 0.28,
+      shadowRadius: 14,
+      shadowOffset: { width: 0, height: 8 },
+      elevation: 6,
+      marginTop: 2,
     },
     buttonText: {
-      color: '#212121',
+      color: '#ffffff',
       fontSize: clamp(16 * s, 14, 18),
-      fontWeight: '800',
+      fontWeight: '900',
       letterSpacing: 0.5,
     },
   });

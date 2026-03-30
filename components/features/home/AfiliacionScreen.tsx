@@ -20,9 +20,8 @@ import {
 } from 'react-native';
 import { TextInput } from 'react-native-paper';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-
-// ✅ Fallback Android (abre dialer / mail apps) cuando Linking falla en prod
 import * as IntentLauncher from 'expo-intent-launcher';
+import { useAppTheme } from '@/components/theme/AppThemeProvider';
 
 type Slide = {
   key: string;
@@ -36,19 +35,11 @@ function clamp(n: number, min: number, max: number) {
   return Math.max(min, Math.min(max, n));
 }
 
-/**
- * ✅ Safe open URL robusto:
- * - iOS: Linking suele ser suficiente
- * - Android: fallback a intents (dialer / email app chooser) si falla
- */
 async function safeOpenURL(url: string) {
   try {
-    // algunos dispositivos devuelven false para canOpenURL pero igual abren
-    // entonces primero intentamos openURL directo
     await Linking.openURL(url);
     return true;
   } catch {
-    // fallback: intentar canOpenURL + reintentar
     try {
       const can = await Linking.canOpenURL(url);
       if (can) {
@@ -58,10 +49,8 @@ async function safeOpenURL(url: string) {
     } catch {}
   }
 
-  // ✅ Fallbacks Android específicos
   if (Platform.OS === 'android') {
     try {
-      // TEL fallback -> abre marcador SIEMPRE (ACTION_DIAL)
       if (url.startsWith('tel:')) {
         const phone = url.replace('tel:', '').trim();
         await IntentLauncher.startActivityAsync('android.intent.action.DIAL', {
@@ -70,16 +59,13 @@ async function safeOpenURL(url: string) {
         return true;
       }
 
-      // MAIL fallback -> abre chooser de apps de mail
       if (url.startsWith('mailto:')) {
-        // mailto:dest?subject=...&body=...
         await IntentLauncher.startActivityAsync('android.intent.action.SENDTO', {
           data: url,
         });
         return true;
       }
 
-      // WhatsApp / https fallback (abrir con VIEW)
       await IntentLauncher.startActivityAsync('android.intent.action.VIEW', { data: url });
       return true;
     } catch {}
@@ -90,6 +76,8 @@ async function safeOpenURL(url: string) {
 }
 
 export default function AfiliacionScreen() {
+  const { theme } = useAppTheme();
+
   const [nombre, setNombre] = useState('');
   const [correo, setCorreo] = useState('');
   const [mensaje, setMensaje] = useState('');
@@ -101,6 +89,23 @@ export default function AfiliacionScreen() {
 
   const s = useMemo(() => clamp(width / 390, 0.85, 1.15), [width]);
   const styles = useMemo(() => createStyles(s, insets, height), [s, insets, height]);
+
+  const paperTheme = useMemo(
+    () => ({
+      roundness: 12,
+      colors: {
+        primary: theme.colors.primary,
+        onPrimary: theme.colors.buttonText,
+        background: theme.colors.surface,
+        surface: theme.colors.card,
+        onSurface: theme.colors.text,
+        outline: theme.colors.border,
+        onSurfaceVariant: theme.colors.muted,
+        placeholder: theme.colors.muted,
+      },
+    }),
+    [theme]
+  );
 
   const destinatario = useMemo(() => 'comercial@medic.com.ar', []);
   const telefonoComercialDisplay = useMemo(() => '+54 9 11 3636-3342', []);
@@ -125,7 +130,6 @@ export default function AfiliacionScreen() {
     const url = `mailto:${destinatario}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
     const ok = await safeOpenURL(url);
 
-    // ✅ Si no hay app de correo configurada, avisamos con un texto útil
     if (!ok) {
       Alert.alert(
         'No se pudo abrir el correo',
@@ -158,16 +162,16 @@ export default function AfiliacionScreen() {
   const keyboardOffset = (insets.top || 0) + (Platform.OS === 'ios' ? 8 : 0);
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={[styles.safe, { backgroundColor: theme.colors.bg }]}>
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'android' ? 'height' : 'padding'}
         keyboardVerticalOffset={keyboardOffset}
       >
         <View style={styles.flex}>
-          {/* Background por debajo */}
+          {/* Background */}
           <View style={StyleSheet.absoluteFill} pointerEvents="none">
-            <View style={styles.bg} />
+            <View style={[styles.bg, { backgroundColor: theme.colors.bg }]} />
           </View>
 
           <ScrollView
@@ -184,15 +188,15 @@ export default function AfiliacionScreen() {
             nestedScrollEnabled
           >
             {/* Header */}
-            <View style={styles.header}>
+            <View style={[styles.header, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
               <TouchableOpacity
-                style={styles.botonLogin}
+                style={[styles.botonLogin, { backgroundColor: theme.colors.primary }]}
                 onPress={() => router.push('/Login')}
                 accessibilityRole="button"
                 accessibilityLabel="Ingresar"
                 activeOpacity={0.9}
               >
-                <Text style={styles.textoBotonLogin}>INGRESAR</Text>
+                <Text style={[styles.textoBotonLogin, { color: theme.colors.buttonText }]}>INGRESAR</Text>
               </TouchableOpacity>
 
               <Image
@@ -203,104 +207,120 @@ export default function AfiliacionScreen() {
             </View>
 
             <View style={styles.hero}>
-              <Text style={styles.titulo}>Bienvenidos</Text>
-              <Text style={styles.subtitulo}>Plataforma de gestión y acceso para usuarios habilitados.</Text>
+              <Text style={[styles.titulo, { color: theme.colors.text }]}>Bienvenidos</Text>
+              <Text style={[styles.subtitulo, { color: theme.colors.muted }]}>
+                Plataforma de gestión y acceso para usuarios habilitados.
+              </Text>
             </View>
 
-            <View style={styles.cajaTexto}>
-              <Text style={styles.texto}>
+            <View style={[styles.cajaTexto, { backgroundColor: theme.colors.primarySoft, borderColor: theme.colors.border }]}>
+              <Text style={[styles.texto, { color: theme.colors.text }]}>
                 Desde acá podés solicitar información, pedir alta o comunicarte con el área comercial/soporte para
                 activar el acceso.
               </Text>
             </View>
 
             <View style={styles.sectionHead}>
-              <Text style={styles.bloqueTitulo}>¿Qué podés hacer en la app?</Text>
-              <View style={styles.lineaInferior} />
+              <Text style={[styles.bloqueTitulo, { color: theme.colors.text }]}>¿Qué podés hacer en la app?</Text>
+              <View style={[styles.lineaInferior, { backgroundColor: theme.colors.border }]} />
             </View>
 
-            <View style={styles.carouselWrap}>
+            <View style={[styles.carouselWrap, { borderColor: theme.colors.border }]}>
               <OffersCarousel onSlidePress={(item: Slide) => setSelectedSlide(item)} />
             </View>
 
             <View style={styles.sectionHead}>
-              <View style={styles.lineaInferior2} />
-              <Text style={styles.bloqueTitulo}>Contacto</Text>
+              <View style={[styles.lineaInferior2, { backgroundColor: theme.colors.border }]} />
+              <Text style={[styles.bloqueTitulo, { color: theme.colors.text }]}>Contacto</Text>
             </View>
 
-            <View style={styles.cajaTexto}>
-              <Text style={styles.texto}>
+            <View style={[styles.cajaTexto, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
+              <Text style={[styles.texto, { color: theme.colors.text }]}>
                 Podés escribirnos por WhatsApp, mail o llamarnos. Te respondemos a la brevedad.
               </Text>
             </View>
 
             <View style={styles.contactoContainer}>
-              <TouchableOpacity style={styles.contactoFila} onPress={callPhone} activeOpacity={0.85}>
+              <TouchableOpacity
+                style={[styles.contactoFila, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}
+                onPress={callPhone}
+                activeOpacity={0.85}
+              >
                 <Image source={require('@/assets/icons/telefono-icon-hd.png')} style={styles.iconoContacto} />
-                <Text style={styles.iconBox} numberOfLines={2}>
+                <Text style={[styles.iconBox, { color: theme.colors.text }]} numberOfLines={2}>
                   {telefonoComercialDisplay}
                 </Text>
               </TouchableOpacity>
 
-              <TouchableOpacity style={styles.contactoFila} onPress={mailDirect} activeOpacity={0.85}>
+              <TouchableOpacity
+                style={[styles.contactoFila, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}
+                onPress={mailDirect}
+                activeOpacity={0.85}
+              >
                 <Image source={require('@/assets/icons/mail-icon-hd.png')} style={styles.iconoContacto} />
-                <Text style={styles.iconBox} numberOfLines={2}>
+                <Text style={[styles.iconBox, { color: theme.colors.text }]} numberOfLines={2}>
                   {destinatario}
                 </Text>
               </TouchableOpacity>
             </View>
 
             <View style={styles.sectionHead}>
-              <View style={styles.lineaInferior2} />
-              <Text style={styles.bloqueTitulo}>Formulario de contacto</Text>
+              <View style={[styles.lineaInferior2, { backgroundColor: theme.colors.border }]} />
+              <Text style={[styles.bloqueTitulo, { color: theme.colors.text }]}>Formulario de contacto</Text>
             </View>
 
-            <View style={styles.form}>
+            <View style={[styles.form, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
               <TextInput
+                theme={paperTheme as any}
                 label="Tu nombre"
                 mode="outlined"
                 value={nombre}
                 onChangeText={setNombre}
-                style={styles.input}
-                contentStyle={styles.inputContent}
+                style={[styles.input, { backgroundColor: theme.colors.surface }]}
+                contentStyle={[styles.inputContent, { color: theme.colors.text }]}
                 dense
               />
 
               <TextInput
+                theme={paperTheme as any}
                 label="Tu correo electrónico"
                 mode="outlined"
                 keyboardType="email-address"
                 autoCapitalize="none"
                 value={correo}
                 onChangeText={setCorreo}
-                style={styles.input}
-                contentStyle={styles.inputContent}
+                style={[styles.input, { backgroundColor: theme.colors.surface }]}
+                contentStyle={[styles.inputContent, { color: theme.colors.text }]}
                 dense
               />
 
               <TextInput
+                theme={paperTheme as any}
                 label="¿En qué podemos ayudarte?"
                 mode="outlined"
                 multiline
                 value={mensaje}
                 onChangeText={setMensaje}
-                style={[styles.input, styles.inputMultiline]}
-                contentStyle={[styles.inputContent, styles.inputMultilineContent]}
+                style={[styles.input, styles.inputMultiline, { backgroundColor: theme.colors.surface }]}
+                contentStyle={[styles.inputContent, styles.inputMultilineContent, { color: theme.colors.text }]}
               />
 
-              <TouchableOpacity style={styles.botonEnviar} onPress={handleEnviar} activeOpacity={0.9}>
-                <Text style={styles.botonEnviarTexto}>ENVIAR</Text>
+              <TouchableOpacity
+                style={[styles.botonEnviar, { backgroundColor: theme.colors.primary }]}
+                onPress={handleEnviar}
+                activeOpacity={0.9}
+              >
+                <Text style={[styles.botonEnviarTexto, { color: theme.colors.buttonText }]}>ENVIAR</Text>
               </TouchableOpacity>
             </View>
 
-            {/* espacio para que WhatsApp no tape */}
             <View style={{ height: styles.__spacerBottom.height }} />
           </ScrollView>
 
           {/* Floating WhatsApp */}
           {!selectedSlide && (
             <TouchableOpacity
-              style={styles.fixedWhatsApp}
+              style={[styles.fixedWhatsApp, { backgroundColor: '#25D366' }]}
               onPress={openWhatsApp}
               accessibilityRole="button"
               accessibilityLabel="Abrir WhatsApp"
@@ -312,13 +332,16 @@ export default function AfiliacionScreen() {
 
           {/* Modal */}
           <Modal visible={!!selectedSlide} transparent animationType="fade" onRequestClose={() => setSelectedSlide(null)}>
-            <Pressable style={styles.modalBg} onPress={() => setSelectedSlide(null)}>
-              <Pressable style={styles.modalContent} onPress={() => {}}>
+            <Pressable style={[styles.modalBg, { backgroundColor: theme.colors.overlay }]} onPress={() => setSelectedSlide(null)}>
+              <Pressable
+                style={[styles.modalContent, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}
+                onPress={() => {}}
+              >
                 <TouchableOpacity style={styles.modalClose} onPress={() => setSelectedSlide(null)} hitSlop={24}>
-                  <Text style={styles.modalCloseText}>×</Text>
+                  <Text style={[styles.modalCloseText, { color: theme.colors.text }]}>×</Text>
                 </TouchableOpacity>
 
-                <Text style={styles.modalTitle}>{selectedSlide?.title}</Text>
+                <Text style={[styles.modalTitle, { color: theme.colors.text }]}>{selectedSlide?.title}</Text>
 
                 <ScrollView
                   style={styles.modalBody}
@@ -330,7 +353,7 @@ export default function AfiliacionScreen() {
                   overScrollMode="always"
                   alwaysBounceVertical
                 >
-                  <Text style={styles.modalText}>{selectedSlide?.extraInfo || ''}</Text>
+                  <Text style={[styles.modalText, { color: theme.colors.muted }]}>{selectedSlide?.extraInfo || ''}</Text>
                 </ScrollView>
               </Pressable>
             </Pressable>
@@ -368,8 +391,8 @@ function createStyles(
   return StyleSheet.create({
     __spacerBottom: { height: spacerBottom },
     flex: { flex: 1 },
-    safe: { flex: 1, backgroundColor: '#BFD6EF' },
-    bg: { flex: 1, backgroundColor: '#BFD6EF' },
+    safe: { flex: 1 },
+    bg: { flex: 1 },
 
     container: {
       flexGrow: 1,
@@ -382,19 +405,16 @@ function createStyles(
       flexDirection: 'row',
       justifyContent: 'space-between',
       alignItems: 'center',
-      backgroundColor: '#BFD6EF',
       paddingVertical: clamp(12 * s, 10, 16),
       paddingHorizontal: 12,
       borderRadius: 12,
-      elevation: 12,
+      borderWidth: 1,
       marginTop: clamp(6 * s, 4, 10),
     },
 
     logo: { width: logoW, height: logoH },
 
     botonLogin: {
-      backgroundColor: '#f89f51ff',
-      elevation: 4,
       paddingVertical: clamp(8 * s, 7, 10),
       paddingHorizontal: clamp(12 * s, 10, 14),
       borderRadius: 10,
@@ -404,11 +424,10 @@ function createStyles(
     },
 
     textoBotonLogin: {
-      color: '#424242',
       textAlign: 'center',
-      fontFamily: 'Roboto-SemiBold',
       fontSize: clamp(16 * s, 13, 17),
       letterSpacing: 0.5,
+      fontWeight: '900',
     },
 
     hero: { paddingHorizontal: 6, paddingTop: isShort ? 2 : 8 },
@@ -417,9 +436,8 @@ function createStyles(
       textAlign: 'left',
       fontSize: titleSize,
       marginTop: 6,
-      color: '#111111',
-      fontFamily: 'Roboto-SemiBold',
       lineHeight: clamp(titleSize + 6, 30, 54),
+      fontWeight: '900',
     },
 
     subtitulo: {
@@ -428,22 +446,19 @@ function createStyles(
       marginBottom: 6,
       textAlign: 'left',
       fontWeight: '600',
-      color: '#424242',
       lineHeight: clamp(subSize + 6, 18, 34),
     },
 
     cajaTexto: {
-      backgroundColor: '#3F83CF',
       padding: clamp(12 * s, 10, 14),
       borderRadius: 12,
-      elevation: 8,
+      borderWidth: 1,
     },
 
     texto: {
-      fontFamily: 'Roboto-Regular',
       fontSize: body,
-      color: '#F5F5F5',
       lineHeight: clamp(body + 7, 18, 28),
+      fontWeight: '700',
     },
 
     sectionHead: { gap: 10 },
@@ -451,14 +466,12 @@ function createStyles(
     lineaInferior: {
       height: 2,
       width: '55%',
-      backgroundColor: '#3F83CF',
       borderRadius: 2,
     },
 
     lineaInferior2: {
       height: 2,
       width: '100%',
-      backgroundColor: '#3F83CF',
       borderRadius: 2,
     },
 
@@ -467,15 +480,21 @@ function createStyles(
       paddingTop: clamp(18 * s, 12, 22),
       paddingBottom: clamp(8 * s, 6, 12),
       fontSize: blockTitle,
-      fontFamily: 'Roboto-SemiBold',
-      color: '#3A3A3A',
       lineHeight: clamp(blockTitle + 6, 24, 40),
+      fontWeight: '900',
     },
 
-    carouselWrap: { borderRadius: 14, overflow: 'hidden' },
+    carouselWrap: { borderRadius: 14, overflow: 'hidden', borderWidth: 1 },
 
     contactoContainer: { marginHorizontal: 4, marginTop: 4, gap: 12 },
-    contactoFila: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+    contactoFila: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+      borderRadius: 14,
+      padding: 12,
+      borderWidth: 1,
+    },
 
     iconoContacto: {
       width: clamp(40 * s, 28, 44),
@@ -486,15 +505,13 @@ function createStyles(
     iconBox: {
       flex: 1,
       fontSize: contactText,
-      color: '#212121',
-      fontFamily: 'Roboto-Regular',
       lineHeight: clamp(contactText + 6, 18, 30),
+      fontWeight: '800',
     },
 
-    form: { gap: 10 },
+    form: { gap: 10, borderRadius: 16, padding: 14, borderWidth: 1 },
 
     input: {
-      backgroundColor: '#F5F5F5',
       width: '100%',
       borderRadius: 12,
       marginTop: 10,
@@ -509,19 +526,16 @@ function createStyles(
     inputMultilineContent: { minHeight: clamp(120 * s, 90, 160) },
 
     botonEnviar: {
-      backgroundColor: '#f89f51ff',
       paddingVertical: clamp(14 * s, 12, 16),
       borderRadius: 12,
       width: '100%',
       marginTop: 14,
       marginBottom: 10,
-      elevation: 4,
       alignItems: 'center',
       justifyContent: 'center',
     },
 
     botonEnviarTexto: {
-      color: '#424242',
       fontWeight: '900',
       textAlign: 'center',
       fontSize: clamp(16 * s, 14, 18),
@@ -532,18 +546,20 @@ function createStyles(
       position: 'absolute',
       bottom: waBottom,
       right: 16,
-      backgroundColor: '#25D366',
       borderRadius: 999,
       padding: waPad,
       zIndex: 99,
       elevation: 12,
+      shadowColor: '#000',
+      shadowOpacity: 0.25,
+      shadowRadius: 10,
+      shadowOffset: { width: 0, height: 6 },
     },
 
     whatsappIcon: { width: waSize, height: waSize, alignSelf: 'center' },
 
     modalBg: {
       flex: 1,
-      backgroundColor: 'rgba(0,0,0,0.45)',
       justifyContent: 'center',
       alignItems: 'center',
       padding: 16,
@@ -552,34 +568,32 @@ function createStyles(
     modalContent: {
       width: '90%',
       maxWidth: 520,
-      backgroundColor: '#fff',
       borderRadius: 18,
       padding: clamp(22 * s, 16, 26),
       alignItems: 'center',
       maxHeight: isShort ? '80%' : '70%',
+      borderWidth: 1,
     },
 
     modalClose: { position: 'absolute', top: 10, right: 10, zIndex: 10, borderRadius: 18, padding: 6 },
-    modalCloseText: { fontSize: clamp(28 * s, 22, 30), color: '#2A2A2A' },
+    modalCloseText: { fontSize: clamp(28 * s, 22, 30) },
 
     modalTitle: {
-      fontFamily: 'Roboto-SemiBold',
       fontSize: clamp(22 * s, 16, 24),
-      color: '#2A2A2A',
       marginBottom: 12,
       marginTop: 8,
       textAlign: 'center',
       lineHeight: clamp(28 * s, 20, 34),
+      fontWeight: '900',
     },
 
     modalBody: { width: '100%', flexGrow: 0 },
     modalBodyContent: { paddingBottom: 8 },
     modalText: {
-      fontFamily: 'Roboto-Regular',
       fontSize: clamp(16 * s, 13, 18),
-      color: '#424242',
       textAlign: 'left',
       lineHeight: clamp(22 * s, 18, 28),
+      fontWeight: '700',
     },
   });
 }

@@ -20,7 +20,11 @@ export function ThemedText({
   type = 'default',
   ...rest
 }: ThemedTextProps) {
-  const color = useThemeColor({ light: lightColor, dark: darkColor }, 'text');
+  // texto base
+  const textColor = useThemeColor({ light: lightColor, dark: darkColor }, 'text');
+
+  // link color “pro” (usa primary del theme)
+  const linkColor = useThemeColor({ light: lightColor, dark: darkColor }, 'primary');
 
   const { width, height } = useWindowDimensions();
   const s = useMemo(() => clamp(width / 390, 0.9, 1.25), [width]);
@@ -28,10 +32,12 @@ export function ThemedText({
 
   const styles = useMemo(() => createStyles(s, isShort), [s, isShort]);
 
+  const computedColor = type === 'link' ? linkColor : textColor;
+
   return (
     <Text
       style={[
-        { color },
+        { color: computedColor },
         type === 'default' ? styles.default : undefined,
         type === 'title' ? styles.title : undefined,
         type === 'defaultSemiBold' ? styles.defaultSemiBold : undefined,
@@ -80,8 +86,8 @@ function createStyles(s: number, isShort: boolean) {
     link: {
       lineHeight: linkLH,
       fontSize: link,
-      color: '#0a7ea4',
-      fontWeight: '700',
+      fontWeight: '800',
+      textDecorationLine: 'underline',
     },
   });
 }

@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 import { useMenu } from './MenuProvider';
+import { useAppTheme } from '@/components/theme/AppThemeProvider';
 
 function clamp(n: number, min: number, max: number) {
   return Math.max(min, Math.min(max, n));
@@ -8,14 +9,18 @@ function clamp(n: number, min: number, max: number) {
 
 export default function HeaderWithMenu({ nombre }: { nombre: string }) {
   const { open } = useMenu();
+  const { theme } = useAppTheme();
   const { width } = useWindowDimensions();
 
   const s = useMemo(() => clamp(width / 390, 0.9, 1.25), [width]);
   const styles = useMemo(() => createStyles(s), [s]);
 
+  const headerBg = theme.colors.headerBg ?? theme.colors.primary;
+  const headerText = theme.colors.headerText ?? '#fff';
+
   return (
-    <View style={styles.header}>
-      <Text style={styles.title} numberOfLines={1}>
+    <View style={[styles.header, { backgroundColor: headerBg }]}>
+      <Text style={[styles.title, { color: headerText }]} numberOfLines={1}>
         Bienvenido, {nombre}
       </Text>
 
@@ -26,9 +31,9 @@ export default function HeaderWithMenu({ nombre }: { nombre: string }) {
         hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
       >
         <View style={styles.burger}>
-          <View style={styles.bar} />
-          <View style={styles.bar} />
-          <View style={styles.bar} />
+          <View style={[styles.bar, { backgroundColor: headerText }]} />
+          <View style={[styles.bar, { backgroundColor: headerText }]} />
+          <View style={[styles.bar, { backgroundColor: headerText }]} />
         </View>
       </TouchableOpacity>
     </View>
@@ -51,11 +56,9 @@ function createStyles(s: number) {
       justifyContent: 'space-between',
       paddingHorizontal: padH,
       paddingVertical: padV,
-      backgroundColor: '#6FA7D9',
     },
     title: {
-      color: '#fff',
-      fontWeight: '800',
+      fontWeight: '900',
       fontSize: titleSize,
       flex: 1,
       marginRight: 12,
@@ -69,7 +72,6 @@ function createStyles(s: number) {
     bar: {
       height: barH,
       borderRadius: barH,
-      backgroundColor: '#fff',
       opacity: 0.95,
     },
   });

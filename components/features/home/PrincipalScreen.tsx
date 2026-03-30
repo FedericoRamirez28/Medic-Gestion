@@ -12,6 +12,8 @@ import { HapticTab } from '@/constants/HapticTab';
 
 import CredencialScreen from '@/components/features/home/CredencialScreen';
 import PrestadorScreen from '@/components/features/home/PrestadoresScreen';
+import AsistenteMedicacionScreen from '@/components/features/home/AsistenteMedicacionScreen';
+import ButtonAmbulance from '@/components/ui/LlamarAmbulancia';
 import FarmaciaScreen from './FarmaciaScreen';
 
 import { MenuProvider, useMenu } from '@/components/menu/MenuProvider';
@@ -22,6 +24,7 @@ type RootTabParamList = {
   Farmacias: undefined;
   Prestadores: undefined;
   Credencial: undefined;
+  Asistente: undefined;
 };
 
 function clamp(n: number, min: number, max: number) {
@@ -30,12 +33,14 @@ function clamp(n: number, min: number, max: number) {
 
 function HeaderBurger() {
   const { open } = useMenu();
+  const { theme } = useAppTheme();
+
   return (
     <Pressable onPress={open} accessibilityRole="button" accessibilityLabel="Abrir menú" hitSlop={10}>
       <View style={styles.burgerWrap}>
-        <View style={styles.burgerLine} />
-        <View style={styles.burgerLine} />
-        <View style={styles.burgerLine} />
+        <View style={[styles.burgerLine, { backgroundColor: theme.colors.headerText }]} />
+        <View style={[styles.burgerLine, { backgroundColor: theme.colors.headerText }]} />
+        <View style={[styles.burgerLine, { backgroundColor: theme.colors.headerText }]} />
       </View>
     </Pressable>
   );
@@ -48,6 +53,7 @@ const TITLES: Record<keyof RootTabParamList, string> = {
   Farmacias: 'Farmacias',
   Prestadores: 'Prestadores',
   Credencial: 'Mi credencial',
+  Asistente: 'Asistente',
 };
 
 const ICONS: Record<keyof RootTabParamList, React.ComponentProps<typeof Ionicons>['name']> = {
@@ -55,6 +61,7 @@ const ICONS: Record<keyof RootTabParamList, React.ComponentProps<typeof Ionicons
   Farmacias: 'medkit',
   Prestadores: 'people',
   Credencial: 'card',
+  Asistente: 'sparkles',
 };
 
 type InicioProps = BottomTabScreenProps<RootTabParamList, 'Inicio'>;
@@ -66,7 +73,6 @@ const InicioScreen: React.FC<InicioProps> = ({ navigation }) => {
 
   const s = useMemo(() => clamp(width / 390, 0.85, 1.2), [width]);
 
-  // ✅ si hay user, mostramos su nombre; si no, invitado
   const userName = useMemo(() => {
     const n = (user as any)?.nombre;
     return String(n ?? '').trim() || 'invitado';
@@ -84,12 +90,16 @@ const InicioScreen: React.FC<InicioProps> = ({ navigation }) => {
       <Text style={[styles.Title, { color: theme.colors.text, fontSize: titleMain }]}>
         Bienvenido, {userName}
       </Text>
-      <View style={[styles.lineaInferior2, { backgroundColor: theme.isDark ? '#23324A' : '#BFD6EF' }]} />
+
+      {/* ✅ ya no usamos hardcode, sale del theme */}
+      <View style={[styles.lineaInferior2, { backgroundColor: theme.colors.border }]} />
+
+      <ButtonAmbulance />
 
       <Text style={[styles.Title, { marginTop: 18, fontSize: titleSection, color: theme.colors.text }]}>
         Accesos rápidos
       </Text>
-      <View style={[styles.lineaInferior2, { backgroundColor: theme.isDark ? '#23324A' : '#BFD6EF' }]} />
+      <View style={[styles.lineaInferior2, { backgroundColor: theme.colors.border }]} />
 
       <View style={{ marginTop: 12, gap: 10 }}>
         <Pressable
@@ -138,7 +148,7 @@ const InicioScreen: React.FC<InicioProps> = ({ navigation }) => {
       <Text style={[styles.Title, { marginTop: 18, fontSize: titleSection, color: theme.colors.text }]}>
         Novedades
       </Text>
-      <View style={[styles.lineaInferior2, { backgroundColor: theme.isDark ? '#23324A' : '#BFD6EF' }]} />
+      <View style={[styles.lineaInferior2, { backgroundColor: theme.colors.border }]} />
 
       <View style={{ marginTop: 12 }}>
         <View style={[styles.novedadCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
@@ -166,7 +176,7 @@ const InicioScreen: React.FC<InicioProps> = ({ navigation }) => {
       <Text style={[styles.Title, { marginTop: 18, fontSize: titleSection, color: theme.colors.text }]}>
         Medic te ayuda
       </Text>
-      <View style={[styles.lineaInferior2, { backgroundColor: theme.isDark ? '#23324A' : '#BFD6EF' }]} />
+      <View style={[styles.lineaInferior2, { backgroundColor: theme.colors.border }]} />
 
       <View style={[styles.cajaTexto, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
         <Text style={[styles.texto, { color: theme.colors.muted }]}>
@@ -249,6 +259,7 @@ export default function PrincipalScreen() {
           })}
         >
           <Tab.Screen name="Inicio" component={InicioScreen} options={{ title: '' }} />
+          <Tab.Screen name="Asistente" component={AsistenteMedicacionScreen} options={{ title: TITLES.Asistente }} />
           <Tab.Screen name="Farmacias" component={FarmaciaScreen} />
           <Tab.Screen name="Prestadores" component={PrestadorScreen} />
           <Tab.Screen name="Credencial" component={CredencialScreen} options={{ title: TITLES.Credencial }} />
@@ -312,5 +323,5 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
     marginRight: 8,
   },
-  burgerLine: { height: 3, borderRadius: 2, backgroundColor: '#fff' },
+  burgerLine: { height: 3, borderRadius: 2 },
 });

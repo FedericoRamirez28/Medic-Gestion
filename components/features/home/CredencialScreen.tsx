@@ -78,11 +78,9 @@ export default function CredencialScreen() {
   const { theme } = useAppTheme();
   const { width, height } = useWindowDimensions();
 
-  // ✅ escala para responsive (móviles chicos ↔ tablets)
   const s = useMemo(() => clamp(width / 390, 0.85, 1.2), [width]);
   const isShort = height < 720;
 
-  // ✅ DNI desde sesión
   const afiliadoDni = useMemo(() => {
     const raw = (user as any)?.dni;
     return String(raw ?? '').trim();
@@ -97,26 +95,6 @@ export default function CredencialScreen() {
   const [cachedAt, setCachedAt] = useState<number | null>(null);
   const [hasCache, setHasCache] = useState(false);
 
-  // ✅ Colores desde tu theme
-  const isDark = !!theme?.isDark;
-  const colors = theme?.colors;
-
-  const C = {
-    bg: colors?.surface ?? (isDark ? '#0B1220' : '#FFFFFF'),
-    text: colors?.text ?? (isDark ? '#E5E7EB' : '#111111'),
-    muted: colors?.muted ?? (isDark ? '#9CA3AF' : '#444444'),
-    border: colors?.border ?? (isDark ? '#22324A' : '#DADADA'),
-
-    link: colors?.tabActive ?? '#005BBF',
-
-    medicGreen: '#2FAE3B',
-    planBg: isDark ? 'rgba(47,174,59,0.16)' : '#E8F5E9',
-    planText: isDark ? '#9EE6B2' : '#1B5E20',
-
-    danger: isDark ? '#FCA5A5' : '#D71920',
-    warn: isDark ? '#FBBF24' : '#9A3412',
-  };
-
   const styles = useMemo(() => createStyles(s, isShort), [s, isShort]);
 
   useEffect(() => {
@@ -128,7 +106,6 @@ export default function CredencialScreen() {
       setCachedAt(null);
       setHasCache(false);
 
-      /** ===================== DEMO: credencial hardcode ===================== */
       if (isDemo) {
         const now = Date.now();
         if (!cancelled) {
@@ -138,7 +115,6 @@ export default function CredencialScreen() {
           setOffline(false);
           setLoading(false);
         }
-        // opcional: cachear para que quede “como real”
         try {
           const payload: CachedPayload = { data: DEMO_CRED, cachedAt: now };
           await AsyncStorage.setItem(cacheKey(DEMO_DNI), JSON.stringify(payload));
@@ -161,12 +137,9 @@ export default function CredencialScreen() {
             setCachedAt(parsed.cachedAt ?? null);
             setLoading(false);
           }
-        } catch {
-          // ignore
-        }
+        } catch {}
       }
 
-      // si falta DNI o API, no fetch
       if (!afiliadoDni || !API_BASE) {
         if (!cancelled && !cacheFound) setLoading(false);
         return;
@@ -184,9 +157,7 @@ export default function CredencialScreen() {
           }
           return;
         }
-      } catch {
-        // si falla, intentamos igual fetch
-      }
+      } catch {}
 
       // 3) fetch
       try {
@@ -227,9 +198,7 @@ export default function CredencialScreen() {
         try {
           const payload: CachedPayload = { data: next, cachedAt: now };
           await AsyncStorage.setItem(cacheKey(afiliadoDni), JSON.stringify(payload));
-        } catch {
-          // ignore
-        }
+        } catch {}
 
         setLoading(false);
       } catch {
@@ -252,28 +221,28 @@ export default function CredencialScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={[styles.centered, { backgroundColor: C.bg }]}>
-        <ActivityIndicator size="large" color={C.link} />
+      <SafeAreaView style={[styles.centered, { backgroundColor: theme.colors.surface }]}>
+        <ActivityIndicator size="large" color={theme.colors.primary} />
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: C.bg }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.surface }]}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton} activeOpacity={0.85}>
-          <Text style={[styles.backArrow, { color: C.link }]}>‹ Volver</Text>
+          <Text style={[styles.backArrow, { color: theme.colors.primary }]}>‹ Volver</Text>
         </TouchableOpacity>
       </View>
 
       <View style={styles.brandBlock}>
         <Image source={logo} style={styles.brandLogo} resizeMode="contain" />
-        <View style={[styles.divider, { backgroundColor: C.border }]} />
+        <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
 
-        <Text style={[styles.planHeading, { color: C.medicGreen }]}>TU PLAN</Text>
+        <Text style={[styles.planHeading, { color: theme.colors.primary }]}>TU PLAN</Text>
 
-        <View style={[styles.planBar, { backgroundColor: C.planBg, borderColor: C.border }]}>
-          <Text style={[styles.planBarValue, { color: C.planText }]} numberOfLines={2}>
+        <View style={[styles.planBar, { backgroundColor: theme.colors.primarySoft, borderColor: theme.colors.border }]}>
+          <Text style={[styles.planBarValue, { color: theme.colors.primary }]} numberOfLines={2}>
             {credencial?.plan || '—'}
           </Text>
         </View>
@@ -281,25 +250,29 @@ export default function CredencialScreen() {
         {(offline || cachedAt) && (
           <View style={styles.offlineBox}>
             {offline ? (
-              <Text style={[styles.offlineText, { color: C.warn }]}>Sin conexión. Mostrando credencial guardada.</Text>
+              <Text style={[styles.offlineText, { color: theme.colors.danger }]}>
+                Sin conexión. Mostrando credencial guardada.
+              </Text>
             ) : null}
 
             {cachedAt ? (
-              <Text style={[styles.offlineMuted, { color: C.muted }]}>
-                {/* Podés mostrar fecha si querés */}
+              <Text style={[styles.offlineMuted, { color: theme.colors.muted }]}>
+                {/* si querés, acá se puede mostrar “Actualizado: …” */}
               </Text>
             ) : null}
           </View>
         )}
 
         {!API_BASE && !isDemo && (
-          <Text style={[styles.warnText, { color: C.muted }]}>Falta configurar EXPO_PUBLIC_API_BASE_URL en el .env</Text>
+          <Text style={[styles.warnText, { color: theme.colors.muted }]}>
+            Falta configurar EXPO_PUBLIC_API_BASE_URL en el .env
+          </Text>
         )}
       </View>
 
       <View style={styles.content}>
         {missingDni ? (
-          <Text style={[styles.errorText, { color: C.danger }]}>
+          <Text style={[styles.errorText, { color: theme.colors.danger }]}>
             No tengo tu DNI cargado. Iniciá sesión o consultá tu perfil para sincronizar tus datos.
           </Text>
         ) : credencial ? (
@@ -308,13 +281,15 @@ export default function CredencialScreen() {
               <FlipCard numeroSocio={credencial.numeroSocio} nombre={credencial.nombre} dni={credencial.dni} />
             </View>
 
-            <Text style={[styles.legend, { color: C.muted }]}>
+            <Text style={[styles.legend, { color: theme.colors.muted }]}>
               El uso de esta credencial es exclusivo de su titular y debe presentarse con el documento de identidad.
             </Text>
           </>
         ) : (
-          <Text style={[styles.errorText, { color: C.danger }]}>
-            {hasCache ? 'No se encontraron datos de la credencial.' : 'No se encontraron datos. Conectate a internet para cargarla por primera vez.'}
+          <Text style={[styles.errorText, { color: theme.colors.danger }]}>
+            {hasCache
+              ? 'No se encontraron datos de la credencial.'
+              : 'No se encontraron datos. Conectate a internet para cargarla por primera vez.'}
           </Text>
         )}
       </View>
@@ -379,7 +354,7 @@ function createStyles(s: number, isShort: boolean) {
 
     cardWrap: {
       width: '100%',
-      maxWidth: 520, // tablet friendly
+      maxWidth: 520,
       alignItems: 'center',
     },
 

@@ -8,7 +8,7 @@ const CustomBackground = () => (
     <Svg width={width} height={height} viewBox="0 0 360 640" preserveAspectRatio="none">
       <Path
         d="M0,0 L360,0 L360,690 L0,690 L0,0 Z"
-        fill="#BFD6EF"
+        fill="#e0e5f0"
         fillRule="evenodd"
       />
     </Svg>
